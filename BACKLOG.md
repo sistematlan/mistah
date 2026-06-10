@@ -65,25 +65,57 @@ Clasifica `~/Downloads` para identificar candidatos a borrar.
 
 ### Más detectores de caches
 
-- [ ] **VSCode/Cursor/Trae caches**: `~/Library/Application Support/{Code,Cursor,Trae}/Cache*`
-- [ ] **Electron caches**: `~/Library/Application Support/*/Cache`, `*/Code Cache`, `*/GPUCache` (los Electron son culpables silenciosos)
-- [ ] **Slack/Discord caches**
+#### P0 — alto impacto, fáciles de implementar
+- [ ] **Electron caches genéricos**: `~/Library/Application Support/*/Cache`, `*/Code Cache`, `*/GPUCache` — culpable silencioso (VSCode, Cursor, Trae, Antigravity, Comet, Slack, Discord, Teams, Notion, Linear, todos los que sean Electron)
+- [ ] **iOS Simulator devices**: `~/Library/Developer/CoreSimulator/Devices/` — los simuladores en sí mismos pueden ocupar 5-50 GB en devs iOS
+- [ ] **Time Machine local snapshots**: `tmutil listlocalsnapshots /` — Apple los crea sin avisar, ocupan "purgeable space"
+- [ ] **Mail.app adjuntos**: `~/Library/Mail/V*/MailData/`
+- [ ] **Messages adjuntos**: `~/Library/Messages/Attachments/`
+- [ ] **Photos library** caches: `~/Pictures/Photos Library.photoslibrary/resources/`
 - [ ] **Spotify cache**: `~/Library/Caches/com.spotify.client`
-- [ ] **Time Machine local snapshots**: `tmutil listlocalsnapshots /` y borrado controlado
-- [ ] **Mail attachments cache**: `~/Library/Mail/V*/MailData/`
-- [ ] **gradle / maven**: `~/.gradle/caches`, `~/.m2/repository`
-- [ ] **Bun cache**: `~/.bun/install/cache`
-- [ ] **Deno cache**: `~/Library/Caches/deno`
-- [ ] **rustup toolchains viejas**: parsear `rustup toolchain list` y detectar las no usadas
-- [ ] **playwright browsers**: `~/Library/Caches/ms-playwright`
+- [ ] **SiriTTS voices**: `~/Library/Caches/SiriTTS` (voces descargadas, opcional desinstalar via Settings)
+- [ ] **VSCode/Cursor/Trae específicos**: `~/Library/Application Support/{Code,Cursor,Trae,Antigravity}/Cache*` con desglose
+
+#### P1 — dev tools faltantes
+- [ ] **Bun**: `~/.bun/install/cache`
+- [ ] **Deno**: `~/Library/Caches/deno`
+- [ ] **Gradle**: `~/.gradle/caches`
+- [ ] **Maven**: `~/.m2/repository` (cuidado: no es solo caché, también deps activas)
+- [ ] **Playwright**: `~/Library/Caches/ms-playwright`
+- [ ] **Cypress**: `~/Library/Caches/Cypress`
+- [ ] **Puppeteer**: `~/.cache/puppeteer`
+- [ ] **rustup toolchains viejas**: parsear `rustup toolchain list`
+- [ ] **nvm versions viejas**: `~/.nvm/versions/node/v*`
+- [ ] **pnpm node versions**: `~/Library/pnpm/nodejs/*`
+- [ ] **Volta**: `~/.volta/cache`
+- [ ] **VirtualBox VMs huérfanas**: `~/VirtualBox VMs`
+- [ ] **OrbStack VMs**: desglosar Group Container por VM
+- [ ] **JDownloader 2**: `~/Library/Application Support/JDownloader 2`
+- [ ] **TorBrowser-Data**: `~/Library/Application Support/TorBrowser-Data`
 
 ### Más detectores de orphans
 
 - [ ] **Group Containers de apps desinstaladas**: cruzar `~/Library/Group Containers/*` con `/Applications`
 - [ ] **Application Support de apps desinstaladas**: cruzar con `/Applications`
+- [ ] **Containers de apps desinstaladas**: cruzar `~/Library/Containers/*` con `/Applications`
 - [ ] **Wondershare leftover**: `~/Library/Application Support/com.wondershare.Installer`
 - [ ] **Mega Limited cache** (la app sigue, pero el cache crece sin tope)
 - [ ] **Adobe leftover** (típicamente >5 GB tras desinstalar)
+
+### Detector genérico "big files" (catch-all)
+
+- [ ] Comando `chipawa big-files` que escanea `$HOME` y reporta los N archivos más grandes
+- [ ] Filtros: `--min-size 100M`, `--ext .mov,.mp4,.dmg`, `--older-than 90d`
+- [ ] Clasifica automáticamente:
+  - **Videos personales** (.mov, .mp4, .mkv) >500 MB
+  - **DMGs/PKGs/ISOs** sueltos en cualquier sitio
+  - **ZIPs/RARs/7z** + detectar si están extraídos al lado
+  - **Backups** (.bak, .sql, .dump, .tar.gz)
+  - **Carpetas con node_modules** fuera de `~/sourcecode`
+  - **Binarios de build** (`target/`, `dist/`, `build/`, `.next/`) en cualquier proyecto
+  - **Logs viejos** `~/Library/Logs/*` con >90 días
+  - **Crash reports** `~/Library/Logs/DiagnosticReports/`
+- [ ] Opcional: detección de duplicados por hash (SHA-256 sobre archivos >100 MB)
 
 ### `projects` mejorado
 
@@ -140,8 +172,39 @@ Clasifica `~/Downloads` para identificar candidatos a borrar.
 - [ ] **Política de retención**: archivo de config (`~/.chipawa/config.toml`) con reglas tipo `npm cache: keep 30 days`
 - [ ] **Comparativa pre/post**: muestra diff de uso por carpeta tras `clean`
 - [ ] **Sugerencias inteligentes**: "tienes 12 carpetas con node_modules y solo trabajas en 3 proyectos activos"
-- [ ] **Soporte Linux** (largo plazo, requiere abstraer detectores macOS-specific)
-- [ ] **Soporte Windows** (lejos)
+
+### Multiplataforma — análisis técnico
+
+**Estado actual:** chipawa es macOS-only por diseño. Hay 18 referencias a `~/Library/`
+y todos los detectores asumen filesystem Unix con paths macOS específicos.
+
+#### Soporte Linux (medio plazo)
+- [ ] Más fácil que Windows: solo cambian paths, no APIs.
+- [ ] `~/.cache/`, `~/.config/`, `~/.local/share/` en lugar de `~/Library/*`
+- [ ] Apps desde `~/.local/share/applications/` y `/usr/share/applications/`
+- [ ] No hay `mdls` — usar `stat -c %Y` para "last modified" como proxy de uso
+- [ ] Snap, Flatpak, AppImage como sources de caches
+- [ ] **Esfuerzo estimado:** 1-2 semanas con CI Linux runner
+
+#### Soporte Windows (lejos)
+- [ ] **NO portar antes de v1.0 macOS estable.** Razones:
+  - Target del SPEC es devs macOS; ahí está el dolor real.
+  - Competencia fuerte y nativa: WizTree, TreeSize, BleachBit, Storage Sense.
+  - Devs Windows usan WSL2 → caches viven en Linux, problema diferente.
+  - 3-4 semanas de trabajo que no aporta a usuarios actuales.
+  - Cada plataforma multiplica costo de mantenimiento ~2.5x.
+- [ ] **Si se hace alguna vez:**
+  - [ ] Abstraer `PathProvider` con builds tags (`//go:build darwin`, `windows`, `linux`)
+  - [ ] Reemplazar `du -sk` por `filepath.Walk` nativo (también beneficia a macOS)
+  - [ ] Detector de apps via Windows registry (`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`)
+  - [ ] Caches: `%LOCALAPPDATA%`, `%APPDATA%`, `%TEMP%`
+  - [ ] Docker Desktop en Windows: archivos `.vhdx` en `%LOCALAPPDATA%\Docker\wsl\`
+  - [ ] Manejar archivos bloqueados (Windows: handle locking, antivirus)
+  - [ ] `SafeRoots` portable: `%USERPROFILE%`, `%TEMP%`
+  - [ ] Reemplazar prompts ANSI con detección de Windows Terminal vs cmd.exe
+  - [ ] CI con `windows-latest` runner en GitHub Actions
+  - [ ] Tests funcionales en máquina Windows real
+  - [ ] **Esfuerzo estimado:** 3-4 semanas con acceso a Windows real
 
 ### Métricas de salud
 
@@ -174,6 +237,8 @@ Clasifica `~/Downloads` para identificar candidatos a borrar.
 - **UX de confirmación**: ítem por ítem con `[s/N/v/q]`, default seguro en NO
 - **Docker**: `system prune -f` (sin `--volumes`); volumes solo con flag explícito futuro `--include-volumes`
 - **SafeRoots**: solo `$HOME`, `/var/folders`, `/tmp` y `/private/*`. Cualquier otro path es rechazado.
+- **Multiplataforma**: macOS only hasta v1.0. Linux después. Windows solo si hay demanda real (no especulativa).
+- **Cobertura objetivo v0.1.0**: caches dev + orphans básicos + downloads. P0 de Application Support (Electron, iOS Simulator, Time Machine, Mail, Messages) queda para v0.2.0.
 
 ---
 
