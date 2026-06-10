@@ -66,6 +66,9 @@ Ejemplos:
 		if mode == cleaner.Interactive {
 			prompter = cleaner.NewTerminalPrompter()
 		}
+		// Wire the global flag into the cleaner package so prompts use the
+		// right phrasing without passing the bool through every layer.
+		cleaner.SimpleMode = SimpleMode()
 		plan := cleaner.New(items, mode, prompter, cmd.OutOrStdout())
 		results := plan.Run()
 

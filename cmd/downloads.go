@@ -6,6 +6,7 @@ import (
 
 	"github.com/sistematlan/chipawa/internal/disk"
 	"github.com/sistematlan/chipawa/internal/downloads"
+	"github.com/sistematlan/chipawa/internal/i18n"
 	"github.com/sistematlan/chipawa/internal/item"
 	"github.com/spf13/cobra"
 )
@@ -27,9 +28,10 @@ var downloadsCmd = &cobra.Command{
 			return err
 		}
 		if len(details) == 0 {
-			fmt.Println("Nada destacable en ~/Downloads.")
+			fmt.Println(i18n.T("ui.nothing"))
 			return nil
 		}
+		simple := SimpleMode()
 
 		// Group by subcategory while keeping each group sorted by size desc.
 		groups := groupBySubcategory(details)
@@ -52,21 +54,22 @@ var downloadsCmd = &cobra.Command{
 			sort.Slice(items, func(i, j int) bool { return items[i].Item.Bytes > items[j].Item.Bytes })
 
 			total := sumBytes(items)
-			fmt.Printf("\n[%s] %d archivos · %s\n", sub, len(items), disk.FormatBytes(total))
-			fmt.Printf("%-50s %-10s %-8s %s\n", "archivo", "tamaño", "edad", "nota")
-			fmt.Printf("%-50s %-10s %-8s %s\n", "-------", "------", "----", "----")
+			fmt.Printf("\n[%s] %d · %s\n", sub, len(items), disk.FormatBytes(total))
+			fmt.Printf("%-50s %-10s %-8s %s\n",
+				cap1(i18n.T("ui.file")), cap1(i18n.T("ui.size")),
+				cap1(i18n.T("ui.age")), cap1(i18n.T("ui.note")))
+			fmt.Printf("%-50s %-10s %-8s %s\n", "----", "----", "----", "----")
 			for _, d := range items {
 				fmt.Printf("%-50s %-10s %-8s %s\n",
 					truncate(d.Item.Name, 50),
 					disk.FormatBytes(d.Item.Bytes),
 					ageLabel(d.AgeDays),
-					d.Item.Detail)
+					d.Item.HumanDetail(simple))
 			}
 			grandTotal += total
 		}
 
-		fmt.Printf("\nTotal detectado: %s\n", disk.FormatBytes(grandTotal))
-		fmt.Println("Para limpiar (excluyendo large-other): chipawa clean --include-downloads")
+		fmt.Printf("\n%s: %s\n", i18n.T("ui.total"), disk.FormatBytes(grandTotal))
 		return nil
 	},
 }
@@ -100,7 +103,7 @@ func ageLabel(days int) string {
 	case days < 0:
 		return "—"
 	case days == 0:
-		return "hoy"
+		return i18n.T("ui.today")
 	case days < 60:
 		return fmt.Sprintf("%dd", days)
 	case days < 730:
