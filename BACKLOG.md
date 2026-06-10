@@ -22,6 +22,12 @@
 - [x] **Comando `downloads`** con tabla agrupada por subcategoría
 - [x] Integración downloads → clean vía `--include-downloads`
 - [x] Tests de downloads con fixtures temporales (8 casos)
+- [x] **`internal/i18n`** sin libs externas, autodetect $LANG/$LC_ALL, soporte es+en, fallback a inglés
+- [x] **Catálogos es/en** con paridad garantizada por tests, variantes `.simple` y `.advanced` por entrada
+- [x] **`Item.HumanName()`, `HumanDetail(simple)`, `HumanRisk()`** para presentación localizada
+- [x] **Flags globales `--lang` y `--advanced`** en root.go
+- [x] **Migración de todos los detectores** a NameKey/DetailKey/DetailArgs
+- [x] **TerminalPrompter localizado**: prompts, summary, confirmación dangerous
 
 ---
 
