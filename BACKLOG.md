@@ -229,12 +229,23 @@ y todos los detectores asumen filesystem Unix con paths macOS específicos.
 - **CLI framework**: cobra
 - **Telemetría**: cero, jamás
 - **Modelo comercial**: pure OSS por ahora; sponsorship + consulting como vías futuras
-- **`clean` por defecto**: solo caches; orphans requieren `--include-orphans`
+- **`clean` por defecto**: solo caches; orphans requieren `--include-orphans`, downloads requieren `--include-downloads`
 - **UX de confirmación**: ítem por ítem con `[s/N/v/q]`, default seguro en NO
 - **Docker**: `system prune -f` (sin `--volumes`); volumes solo con flag explícito futuro `--include-volumes`
 - **SafeRoots**: solo `$HOME`, `/var/folders`, `/tmp` y `/private/*`. Cualquier otro path es rechazado.
 - **Multiplataforma**: macOS only hasta v1.0. Linux después. Windows solo si hay demanda real (no especulativa).
 - **Cobertura objetivo v0.1.0**: caches dev + orphans básicos + downloads. P0 de Application Support (Electron, iOS Simulator, Time Machine, Mail, Messages) queda para v0.2.0.
+
+### Democratización (sesión 4 backlog)
+
+- **Audiencia objetivo expandida**: técnicos no-dev y power users macOS, no consumer mainstream.
+- **NO hacer GUI nativa Swift**: convertiría chipawa en otro producto, mercado saturado por CleanMyMac, perdería ventaja de auditabilidad open-source.
+- **NO hacer TUI bubbletea**: gain marginal sobre Camino A para audiencia adicional.
+- **Modo por default**: simple (lenguaje humano, niveles preset). Modo técnico opt-in con `--advanced` o `--verbose`.
+- **Wizard sin args**: `chipawa` sin subcomando ejecuta wizard con tres niveles preset (Ligera / Estándar / Profunda).
+- **Distribución**: Apple notarization + curl one-liner + Homebrew. Requiere Apple Developer Account ($99/año).
+- **i18n**: detección automática via `LANG`/`LC_ALL`. Soporte es + en. Sin libs externas — mapas Go nativos.
+- **Plan de implementación**: 4 sesiones — (1) i18n+lenguaje humano, (2) wizard+niveles, (3) report+flags globales, (4) distribución+notarización.
 
 ---
 
