@@ -253,6 +253,23 @@ y todos los detectores asumen filesystem Unix con paths macOS específicos.
 - **i18n**: detección automática via `LANG`/`LC_ALL`. Soporte es + en. Sin libs externas — mapas Go nativos.
 - **Plan de implementación**: 4 sesiones — (1) i18n+lenguaje humano, (2) wizard+niveles, (3) report+flags globales, (4) distribución+notarización.
 
+### User research / feedback (estrategia)
+
+- **No A/B testing tradicional hasta tener 1000+ usuarios reales.** Requiere telemetría que traiciona la promesa de privacidad.
+- **Etapa 1 (primeros 5 usuarios)**: sesiones guiadas 1-on-1 de 30 minutos vía Zoom + share screen. Cualitativo profundo. Jakob Nielsen: 5 usuarios descubren 80% de problemas de UX.
+- **Etapa 2 (50-100 usuarios)**: encuesta opt-in al final de `clean` con link manual a Tally/Typeform. URL solo lleva versión + bytes liberados, nunca paths o contenido. Sin recolección automática.
+- **Etapa 3 (1000+ usuarios)**: solo entonces considerar telemetría opt-in granular con default OFF, comando explícito (`chipawa telemetry enable`), documentación de payload exacto y endpoint open-source para auditar.
+- **Reclutamiento de testers iniciales**:
+  - [ ] Build in public: tweet/post en X y LinkedIn buscando 5 beta testers macOS
+  - [ ] r/macapps, r/golang
+  - [ ] Slack/Discord de comunidades técnicas locales
+  - [ ] Compañeros devs directos
+- **NUNCA**:
+  - Telemetría sin consentimiento explícito
+  - Recolectar paths, nombres de archivo, contenido
+  - Servidor de datos sin código fuente abierto
+  - Cookie tracking en landing page
+
 ---
 
 ## 🎯 Definition of Done para v0.1.0
