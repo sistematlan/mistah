@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/sistematlan/chipawa/internal/i18n"
+	"github.com/sistematlan/chipawa/internal/wizard"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,16 @@ var rootCmd = &cobra.Command{
 		applyLangFlag()
 		return nil
 	},
+	// RunE only fires when no subcommand is given. We use it to launch the
+	// wizard so a bare `chipawa` becomes the friendly entry point. Power
+	// users still have every subcommand available.
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return wizard.Run(os.Stdin, cmd.OutOrStdout())
+	},
+	// Disable cobra's automatic suggestions for misspelled subcommands when
+	// no args are passed; otherwise `chipawa` would print "did you mean…?"
+	// because we now have RunE defined.
+	SilenceUsage: true,
 }
 
 // applyLangFlag wires --lang into the i18n package. Accepts "es" / "en" /
