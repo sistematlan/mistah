@@ -174,4 +174,22 @@ var spanish = map[string]string{
 	"cleaner.plan":                "Plan: %d ítems, %s recuperables",
 	"cleaner.user-quit":           "el usuario salió",
 	"cleaner.user-declined":       "el usuario declinó",
+
+	// ---- Wizard ----
+	"wizard.tagline":             "Limpia tu Mac, al estilo open-source.",
+	"wizard.scanning":            "Escaneando tu disco...",
+	"wizard.menu.header":         "¿Qué tipo de limpieza quieres hacer?",
+	"wizard.menu.prompt":         "Opción [1-4]: ",
+	"wizard.menu.cancel":         "Cancelar — no borrar nada",
+	"wizard.cancelled":           "Cancelado. No se borró nada.",
+	"wizard.thanks":              "Listo. Gracias por usar chipawa.",
+	"wizard.level.light.name":    "Ligera",
+	"wizard.level.light.desc":    "Solo cachés seguras de dev (npm, brew, pip…)",
+	"wizard.level.standard.name": "Estándar",
+	"wizard.level.standard.desc": "Ligera + Docker + JetBrains + restos de Xcode",
+	"wizard.level.deep.name":     "Profunda",
+	"wizard.level.deep.desc":     "Estándar + datos huérfanos + candidatos en Downloads",
+	"wizard.confirm.level":       "Nivel",
+	"wizard.confirm.items":       "ítems",
+	"wizard.confirm.prompt":      "¿Continuar? [s/N] ",
 }

@@ -188,4 +188,22 @@ var english = map[string]string{
 	"cleaner.plan":                "Plan: %d items, %s recoverable",
 	"cleaner.user-quit":           "user quit",
 	"cleaner.user-declined":       "user declined",
+
+	// ---- Wizard ----
+	"wizard.tagline":             "Clean up your Mac, the open-source way.",
+	"wizard.scanning":            "Scanning your disk...",
+	"wizard.menu.header":         "What kind of cleanup would you like?",
+	"wizard.menu.prompt":         "Choice [1-4]: ",
+	"wizard.menu.cancel":         "Cancel — don't delete anything",
+	"wizard.cancelled":           "Cancelled. Nothing was deleted.",
+	"wizard.thanks":              "Done. Thanks for using chipawa.",
+	"wizard.level.light.name":    "Light",
+	"wizard.level.light.desc":    "Safe dev caches only (npm, brew, pip…)",
+	"wizard.level.standard.name": "Standard",
+	"wizard.level.standard.desc": "Light + Docker + JetBrains + Xcode artifacts",
+	"wizard.level.deep.name":     "Deep",
+	"wizard.level.deep.desc":     "Standard + orphan data + Downloads candidates",
+	"wizard.confirm.level":       "Level",
+	"wizard.confirm.items":       "items",
+	"wizard.confirm.prompt":      "Proceed? [y/N] ",
 }
