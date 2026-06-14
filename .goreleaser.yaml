@@ -49,7 +49,7 @@ archives:
       - README*
       - SPEC.md
 
-checksums:
+checksum:
   name_template: "checksums.txt"
 
 snapshot:

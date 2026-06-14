@@ -84,7 +84,7 @@ fi
 # Strip leading 'v' so it matches the goreleaser archive naming.
 VERSION_NO_V="${VERSION#v}"
 
-ARCHIVE="mistah_${VERSION_NO_V}_Darwin_${ARCH}.tar.gz"
+ARCHIVE="mistah_${VERSION_NO_V}_darwin_${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE}"
 
 # ----------------------------------------------------------------------------
