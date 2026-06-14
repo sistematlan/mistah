@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mistah — Limpia tu Mac</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  /*
+    Proposal D — Brutalist Tropical + Animated Broom
+    Fusion: C's audacity + B's terminal showcase + A's etymology elegance.
+    Animated SVG broom sweeping with dust particles, GSAP-driven.
+  */
+  :root {
+    --bg: #0d2a1d;            /* deep jungle */
+    --bg-2: #0a1f15;
+    --canvas: #f4ead0;        /* maíz cream */
+    --canvas-2: #ede0bd;
+    --ink: #0d2a1d;
+    --ink-on-dark: #f4ead0;
+    --accent: #ff6b35;        /* axiote-orange */
+    --accent-2: #ffd23f;      /* yellow */
+    --jade: #4dd99a;          /* light jade */
+    --line: #1a3c2a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--canvas); color: var(--ink); }
+  body {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "JetBrains Mono", monospace; }
+  ::selection { background: var(--accent-2); color: var(--ink); }
+
+  /* Patch sticker */
+  .patch {
+    display: inline-block;
+    padding: 4px 12px;
+    background: var(--ink);
+    color: var(--canvas);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    transform: rotate(-2deg);
+  }
+  .patch.flat { transform: rotate(0); }
+
+  /* Nav */
+  nav {
+    border-bottom: 3px solid var(--ink);
+    padding: 16px 32px;
+    background: var(--canvas);
+    position: sticky; top: 0; z-index: 100;
+  }
+  nav .row { display: flex; justify-content: space-between; align-items: center; max-width: 1280px; margin: 0 auto; }
+  .brand {
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.5px;
+    text-decoration: none;
+    color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .brand .mark {
+    background: var(--ink);
+    color: var(--accent-2);
+    padding: 2px 8px;
+    border-radius: 2px;
+  }
+  .nav-links { display: flex; gap: 8px; font-size: 14px; font-weight: 600; align-items: center; }
+  .nav-links a {
+    text-decoration: none;
+    color: var(--ink);
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all .12s;
+  }
+  .nav-links a:hover { background: var(--ink); color: var(--canvas); }
+  .nav-links .star {
+    background: var(--accent);
+    color: var(--canvas);
+  }
+  .nav-links .star:hover { background: var(--ink); }
+
+  /* Hero */
+  .hero {
+    padding: 64px 32px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 32px;
+    align-items: center;
+  }
+  .hero-text .patch { margin-bottom: 28px; }
+  h1 {
+    font-weight: 700;
+    font-size: clamp(54px, 7vw, 96px);
+    line-height: 0.92;
+    letter-spacing: -3px;
+    margin-bottom: 24px;
+  }
+  h1 .stripe {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--accent-2);
+    padding: 0 14px;
+    transform: rotate(-1deg);
+  }
+  .lede {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink);
+    margin-bottom: 32px;
+    max-width: 540px;
+    font-weight: 500;
+  }
+  .lede strong { background: var(--accent-2); padding: 0 4px; }
+  .ctas { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 24px;
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+    border: 3px solid var(--ink);
+    cursor: pointer;
+    transition: all .15s ease;
+    font-family: "Space Grotesk", sans-serif;
+  }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--accent-2);
+  }
+  .btn-primary:hover {
+    background: var(--accent);
+    color: var(--ink);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .btn-ghost {
+    background: var(--canvas);
+    color: var(--ink);
+  }
+  .btn-ghost:hover { background: var(--accent-2); transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); }
+
+  /* Broom stage */
+  .broom-stage {
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    max-width: 480px;
+    justify-self: end;
+    background: var(--canvas-2);
+    border: 3px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--accent);
+    overflow: hidden;
+    position: relative;
+  }
+  .broom-stage svg { display: block; width: 100%; height: 100%; }
+  .broom-stage .corner-label {
+    position: absolute;
+    top: 12px; left: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--ink);
+    background: var(--accent-2);
+    padding: 2px 8px;
+  }
+  .broom-stage .corner-label.right { left: auto; right: 12px; }
+
+  /* Marquee */
+  .marquee {
+    background: var(--ink);
+    color: var(--canvas);
+    padding: 16px 0;
+    overflow: hidden;
+    border-top: 3px solid var(--ink);
+    border-bottom: 3px solid var(--ink);
+  }
+  .marquee-track {
+    display: flex;
+    gap: 48px;
+    white-space: nowrap;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    animation: scroll 35s linear infinite;
+  }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-track .star { color: var(--accent-2); }
+  .marquee-track .item {
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  /* Sections */
+  section { padding: 80px 32px; max-width: 1280px; margin: 0 auto; }
+  h2 {
+    font-weight: 700;
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 0.95;
+    letter-spacing: -1.6px;
+    margin-bottom: 40px;
+  }
+  h2 .underline { background: var(--accent); padding: 0 8px; color: var(--canvas); }
+  h2 .gold { background: var(--accent-2); padding: 0 8px; }
+  .section-eyebrow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-bottom: 12px;
+    opacity: .7;
+  }
+
+  /* Levels */
+  .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+  .level {
+    background: var(--canvas);
+    color: var(--ink);
+    border: 3px solid var(--ink);
+    padding: 32px;
+    margin-right: -3px;
+    transition: all .15s ease;
+    position: relative;
+  }
+  .level:hover {
+    transform: translate(-4px, -4px);
+    box-shadow: 8px 8px 0 var(--ink);
+    z-index: 2;
+  }
+  .level .badge {
+    display: inline-block;
+    background: var(--ink);
+    color: var(--accent-2);
+    padding: 4px 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+  .level h4 { font-size: 36px; font-weight: 700; line-height: 1; margin-bottom: 8px; letter-spacing: -1px; }
+  .level .size { font-size: 22px; font-weight: 700; color: var(--accent); margin-bottom: 16px; }
+  .level p { font-size: 15px; color: var(--ink); line-height: 1.5; }
+
+  /* Jungle section */
+  .section-bg-jungle {
+    background: var(--bg);
+    color: var(--canvas);
+    border-top: 3px solid var(--ink);
+    border-bottom: 3px solid var(--ink);
+  }
+  .section-bg-jungle .inner { max-width: 1280px; margin: 0 auto; padding: 80px 32px; }
+  .section-bg-jungle h2 { color: var(--canvas); }
+  .section-bg-jungle .section-eyebrow { color: var(--accent-2); opacity: 1; }
+
+  /* Terminal showcase */
+  .terminal {
+    background: var(--bg-2);
+    border: 3px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--accent-2);
+    overflow: hidden;
+    margin-top: 24px;
+  }
+  .terminal-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,0.04);
+  }
+  .terminal-bar .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot-r { background: #ff5f56; }
+  .dot-y { background: #ffbd2e; }
+  .dot-g { background: #27c93f; }
+  .terminal-title {
+    margin-left: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: rgba(244,234,208,0.7);
+  }
+  .terminal-body {
+    padding: 24px 28px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(244,234,208,0.85);
+    overflow-x: auto;
+  }
+  .prompt { color: var(--jade); }
+  .cmd { color: var(--canvas); font-weight: 700; }
+  .highlight { color: var(--accent-2); }
+  .dim { color: rgba(244,234,208,0.5); }
+
+  /* Features grid */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    margin-top: 32px;
+  }
+  .feature {
+    background: var(--canvas);
+    color: var(--ink);
+    border: 3px solid var(--canvas);
+    padding: 32px;
+    position: relative;
+    transition: all .15s ease;
+  }
+  .feature:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 6px 6px 0 var(--accent);
+  }
+  .feature .num {
+    position: absolute;
+    top: -3px; right: -3px;
+    background: var(--accent);
+    color: var(--canvas);
+    padding: 6px 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .feature h3 { font-size: 26px; font-weight: 700; margin-bottom: 10px; line-height: 1.1; }
+  .feature p { color: var(--ink); font-size: 15px; line-height: 1.5; }
+  .feature p .mono-inline {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    background: var(--ink);
+    color: var(--accent-2);
+    padding: 2px 6px;
+  }
+
+  /* Install command box */
+  .install-box {
+    background: var(--ink);
+    border: 3px solid var(--ink);
+    padding: 24px;
+    box-shadow: 8px 8px 0 var(--accent-2);
+    margin-top: 24px;
+  }
+  .install-box pre {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 16px;
+    color: var(--canvas);
+    overflow-x: auto;
+  }
+  .install-box pre .prompt-bg { color: var(--jade); }
+  .install-box pre .accent-bg { color: var(--accent-2); }
+  .install-box .copy-btn {
+    margin-top: 16px;
+    background: var(--accent);
+    color: var(--canvas);
+    border: none;
+    padding: 8px 14px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+  }
+  .install-box .copy-btn:hover { background: var(--accent-2); color: var(--ink); }
+
+  /* Etymology */
+  .etymology {
+    background: var(--ink);
+    color: var(--canvas);
+    padding: 56px 48px;
+    border: 3px solid var(--ink);
+    box-shadow: 12px 12px 0 var(--accent-2);
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+  }
+  .etymology .word {
+    font-weight: 700;
+    font-size: clamp(56px, 8vw, 96px);
+    line-height: 0.85;
+    color: var(--accent-2);
+    letter-spacing: -3px;
+  }
+  .etymology .body { font-size: 18px; line-height: 1.6; }
+  .etymology .gloss strong { color: var(--accent-2); }
+  .etymology .ipa {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: var(--jade);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  /* Footer */
+  footer {
+    background: var(--ink);
+    color: var(--canvas);
+    padding: 32px;
+    border-top: 3px solid var(--ink);
+  }
+  footer .row {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 14px;
+  }
+  footer a { color: var(--accent-2); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 880px) {
+    .hero { grid-template-columns: 1fr; }
+    .broom-stage { justify-self: stretch; max-width: 100%; }
+    .levels { grid-template-columns: 1fr; }
+    .levels .level { margin-right: 0; margin-bottom: -3px; }
+    .features { grid-template-columns: 1fr; }
+    .etymology { grid-template-columns: 1fr; gap: 24px; padding: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="row">
+    <a href="/" class="brand"><span class="mark">m</span>istah</a>
+    <div class="nav-links">
+      <a href="#how">cómo</a>
+      <a href="#why">por qué</a>
+      <a href="#install">instalar</a>
+      <a href="https://github.com/sistematlan/mistah" class="star">github ★</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-text">
+    <span class="patch">v0.1.0 · macOS · open-source · sin telemetría</span>
+    <h1>
+      Tu disco<br/>está sucio.<br/>
+      <span class="stripe">mistah</span> lo barre.
+    </h1>
+    <p class="lede">
+      Detecta los gigabytes que se esconden en tu Mac —
+      cachés, datos huérfanos, archivos olvidados.
+      <strong>Cero telemetría.</strong> Código auditable.
+      Gratis para siempre.
+    </p>
+    <div class="ctas">
+      <a href="#install" class="btn btn-primary">INSTALAR ↓</a>
+      <a href="https://github.com/sistematlan/mistah" class="btn btn-ghost">VER CÓDIGO →</a>
+    </div>
+  </div>
+
+  <!-- Broom stage with animated SVG -->
+  <div class="broom-stage" aria-hidden="true">
+    <span class="corner-label">en vivo</span>
+    <span class="corner-label right">[barriendo...]</span>
+    <svg id="broom-svg" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg">
+      <!-- Pile of "trash files" that broom sweeps away -->
+      <g id="trash-pile">
+        <!-- Original positions; will be animated to disappear in waves -->
+        <rect class="trash" x="120" y="360" width="14" height="14" fill="#ff6b35" transform="rotate(15 127 367)"/>
+        <rect class="trash" x="148" y="368" width="10" height="10" fill="#4dd99a" transform="rotate(-12 153 373)"/>
+        <rect class="trash" x="170" y="358" width="16" height="16" fill="#0d2a1d" transform="rotate(8 178 366)"/>
+        <rect class="trash" x="200" y="370" width="11" height="11" fill="#ff6b35" transform="rotate(-20 205 375)"/>
+        <rect class="trash" x="225" y="362" width="13" height="13" fill="#ffd23f" transform="rotate(15 231 368)"/>
+        <rect class="trash" x="252" y="370" width="9" height="9" fill="#0d2a1d" transform="rotate(-8 256 374)"/>
+        <rect class="trash" x="275" y="364" width="12" height="12" fill="#4dd99a" transform="rotate(20 281 370)"/>
+        <rect class="trash" x="305" y="368" width="14" height="14" fill="#ff6b35" transform="rotate(-15 312 375)"/>
+        <rect class="trash" x="335" y="360" width="10" height="10" fill="#ffd23f" transform="rotate(10 340 365)"/>
+        <rect class="trash" x="358" y="370" width="11" height="11" fill="#0d2a1d" transform="rotate(-22 363 375)"/>
+      </g>
+
+      <!-- Floor line -->
+      <line x1="80" y1="385" x2="400" y2="385" stroke="#0d2a1d" stroke-width="3"/>
+      <line x1="80" y1="385" x2="400" y2="385" stroke="#0d2a1d" stroke-width="2" stroke-dasharray="4 6" opacity="0.4" transform="translate(0 6)"/>
+
+      <!-- Dust particles container; populated dynamically -->
+      <g id="dust-container"></g>
+
+      <!-- The broom — geometric brutalist style, all simple shapes.
+           Geometry notes (so the JS animation aligns):
+           - The broom group has NO baked-in transform. GSAP sets x and y
+             absolutely. This avoids the well-known issue where GSAP's
+             transform overwrites the SVG attribute transform.
+           - Inside the group, the handle goes from (0, 0) to (0, 244),
+             extending 4px INTO the bristle mount for visual continuity.
+           - Bristle mount sits at y=240..256.
+           - Bristles extend down to y≈312 from y=256.
+           - Handle is 12px wide to balance the 72px-wide mount visually.
+           - JS sets translate via gsap.set(x: 380, y: 80) at start so the
+             bristle tip lands at SVG-y ≈ 392, on the floor.
+      -->
+      <g id="broom">
+        <g id="broom-inner">
+          <!-- Handle (mango) — extends 4px INTO the mount for visual continuity.
+               Width 12px (was 10px) so the T-junction with the 72px-wide mount
+               looks intentional rather than a gap. -->
+          <rect x="-6" y="0" width="12" height="244"
+                fill="#0d2a1d"/>
+          <!-- Wood grain accent stripe inside the handle -->
+          <rect x="-2" y="20" width="4" height="200"
+                fill="#ff6b35"/>
+
+          <!-- Bristles assembly: mount sits flush at y=240 -->
+          <g id="bristles" transform="translate(0 240)">
+            <!-- Mount: solid dark block, sits exactly where the handle ends.
+                 Slight inner accent stripe near the top, NOT at the very top,
+                 so the handle blends into the mount without a visible seam. -->
+            <rect x="-36" y="0" width="72" height="16" fill="#0d2a1d"/>
+            <rect x="-34" y="9" width="68" height="3" fill="#4dd99a"/>
+
+            <!-- Bristle strands fan out and DOWN (perpendicular to floor) -->
+            <g class="bristle-strand">
+              <line x1="-32" y1="16" x2="-36" y2="62" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-25" y1="16" x2="-27" y2="64" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-18" y1="16" x2="-19" y2="66" stroke="#ff6b35" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-11" y1="16" x2="-11" y2="67" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-4" y1="16" x2="-3" y2="68" stroke="#ff6b35" stroke-width="3" stroke-linecap="round"/>
+              <line x1="3" y1="16" x2="4" y2="68" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/>
+              <line x1="10" y1="16" x2="12" y2="67" stroke="#ff6b35" stroke-width="3" stroke-linecap="round"/>
+              <line x1="17" y1="16" x2="20" y2="66" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/>
+              <line x1="24" y1="16" x2="28" y2="64" stroke="#ff6b35" stroke-width="3" stroke-linecap="round"/>
+              <line x1="31" y1="16" x2="36" y2="62" stroke="#ffd23f" stroke-width="3" stroke-linecap="round"/>
+            </g>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+</header>
+
+<div class="marquee">
+  <div class="marquee-track">
+    <span class="item"><span class="star">★</span> open source</span>
+    <span class="item"><span class="star">★</span> sin telemetría</span>
+    <span class="item"><span class="star">★</span> código auditable</span>
+    <span class="item"><span class="star">★</span> licencia MIT</span>
+    <span class="item"><span class="star">★</span> macOS arm64 + amd64</span>
+    <span class="item"><span class="star">★</span> bilingüe es / en</span>
+    <span class="item"><span class="star">★</span> open source</span>
+    <span class="item"><span class="star">★</span> sin telemetría</span>
+    <span class="item"><span class="star">★</span> código auditable</span>
+    <span class="item"><span class="star">★</span> licencia MIT</span>
+    <span class="item"><span class="star">★</span> macOS arm64 + amd64</span>
+    <span class="item"><span class="star">★</span> bilingüe es / en</span>
+  </div>
+</div>
+
+<section id="how">
+  <div class="section-eyebrow">¿cómo funciona?</div>
+  <h2>Tres niveles. <span class="underline">Una decisión.</span></h2>
+  <div class="levels">
+    <div class="level">
+      <span class="badge">01 · LIGHT</span>
+      <h4>Ligera</h4>
+      <div class="size">~3 GB</div>
+      <p>Solo cachés seguras. npm, brew, pip, uv. Sin sorpresas. Reversible total. Para empezar.</p>
+    </div>
+    <div class="level">
+      <span class="badge">02 · STANDARD</span>
+      <h4>Estándar</h4>
+      <div class="size">~6 GB</div>
+      <p>Lo anterior + Docker prune + IDEs JetBrains + Xcode artifacts. El sweet spot.</p>
+    </div>
+    <div class="level">
+      <span class="badge">03 · DEEP</span>
+      <h4>Profunda</h4>
+      <div class="size">~12 GB</div>
+      <p>Todo + datos huérfanos + candidatos en Downloads. Para auditoría seria.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-bg-jungle">
+  <div class="inner">
+    <div class="section-eyebrow">así se ve</div>
+    <h2><span class="gold">Open</span> + el wizard.</h2>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <span class="dot dot-r"></span>
+        <span class="dot dot-y"></span>
+        <span class="dot dot-g"></span>
+        <span class="terminal-title">~ mistah</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="prompt">$</span> <span class="cmd">mistah</span></div>
+        <br/>
+        <div class="dim">  mistah</div>
+        <div class="dim">  ───────</div>
+        <div class="dim">  Limpia tu Mac, al estilo open-source.</div>
+        <br/>
+        <div class="dim"><span class="highlight">⠋</span> Escaneando tu disco...</div>
+        <div>¿Qué tipo de limpieza quieres hacer?</div>
+        <br/>
+        <div>  1) <span class="cmd">Ligera</span>      <span class="highlight">3.2 GB</span>  — Solo cachés seguras</div>
+        <div>  2) <span class="cmd">Estándar</span>   <span class="highlight">6.4 GB</span>  — + Docker + JetBrains</div>
+        <div>  3) <span class="cmd">Profunda</span>   <span class="highlight">12.1 GB</span> — + huérfanos + Downloads</div>
+        <div>  4) Cancelar</div>
+        <br/>
+        <div><span class="prompt">Opción [1-4]:</span> <span class="cmd">2</span></div>
+        <br/>
+        <div>  Nivel: <span class="cmd">Estándar</span> · 13 ítems · <span class="highlight">6.4 GB</span></div>
+        <div><span class="prompt">¿Continuar? [s/N]</span> <span class="cmd">s</span></div>
+        <br/>
+        <div class="dim">borrando Docker reclaimable ... ok</div>
+        <div class="dim">borrando JetBrains cache ... ok</div>
+        <div class="dim">borrando Chrome cache ... ok</div>
+        <div class="dim">...</div>
+        <br/>
+        <div>Resumen: <span class="highlight">13 eliminados</span>, 0 fallidos</div>
+        <div>Espacio liberado: <span class="highlight">6.4 GB</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="why">
+  <div class="section-eyebrow">por qué es diferente</div>
+  <h2>Sin magia.<br/>Solo <span class="underline">código.</span></h2>
+  <div class="features">
+    <div class="feature">
+      <span class="num">01</span>
+      <h3>Cero telemetría</h3>
+      <p>No enviamos nada. No hay servidor. No hay analytics. El código está abierto. Léelo, audítalo, tira PR si encuentras algo.</p>
+    </div>
+    <div class="feature">
+      <span class="num">02</span>
+      <h3>Confirmación explícita</h3>
+      <p>mistah te muestra exactamente qué va a borrar antes de tocar nada. Cancela cuando quieras con <span class="mono-inline">q</span>.</p>
+    </div>
+    <div class="feature">
+      <span class="num">03</span>
+      <h3>Modo desarrollador</h3>
+      <p>Quieres control granular ítem por ítem? <span class="mono-inline">mistah clean</span> lo hace. JSON, dry-run, todo.</p>
+    </div>
+    <div class="feature">
+      <span class="num">04</span>
+      <h3>Bilingüe nativo</h3>
+      <p>Detecta tu locale automáticamente. es / en sin configuración. Sin dependencias. Sin internet.</p>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="section-eyebrow">instalar</div>
+  <h2>Una <span class="gold">línea</span>.</h2>
+  <p style="font-size:18px; max-width:600px; margin-bottom:8px; font-weight:500;">
+    Pega esto en tu terminal. Detecta tu arquitectura, descarga el binario y queda listo en segundos.
+  </p>
+  <div class="install-box">
+    <pre><span class="prompt-bg">$</span> curl -fsSL <span class="accent-bg">mistah.sistematlan.com/install.sh</span> | sh</pre>
+    <button class="copy-btn" onclick="navigator.clipboard.writeText('curl -fsSL mistah.sistematlan.com/install.sh | sh'); this.textContent='COPIADO ✓'; setTimeout(() => this.textContent='COPIAR', 2000)">COPIAR</button>
+  </div>
+</section>
+
+<section>
+  <div class="section-eyebrow">el nombre</div>
+  <h2>¿Por qué <span class="gold">mistah?</span></h2>
+  <div class="etymology">
+    <div class="word">mis<br/>·tah</div>
+    <div class="body">
+      <div class="ipa">/mees-TAH/ · MAYA YUCATECO</div>
+      <p class="gloss"><strong>«él que barre»</strong>, del verbo <span class="mono">mis</span> (barrer).</p>
+      <br/>
+      <p>Una herramienta nombrada por la acción que ejecuta — no por lo que es.<br/>
+      Lengua viva, ~800,000 hablantes hoy en la península de Yucatán.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="row">
+    <div>© sistematlan · MIT · hecho con ❤ en Oaxaca</div>
+    <div>
+      <a href="https://github.com/sistematlan/mistah">github</a> ·
+      <a href="https://github.com/sistematlan/mistah/issues">reportar issue</a> ·
+      <a href="https://sistematlan.com">sistematlan.com</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  /*
+    Broom animation — GSAP-driven loop that:
+      1. Sweeps the broom from RIGHT to LEFT across the visible stage.
+      2. Releases dust particles each pass that drift upward and fade.
+      3. Hides the trash items as the broom passes over them.
+      4. Resets and loops infinitely.
+
+    Geometry (SVG viewBox 0 0 480 480):
+      - The broom <g> has NO transform attribute. GSAP sets x/y as the
+        ABSOLUTE position in SVG coords. This avoids GSAP overwriting the
+        SVG's transform attribute (a common bug when mixing both).
+      - Sweep endpoints are absolute SVG-x values:
+          start: x = 380  (right side, near rightmost trash)
+          end:   x = 100  (left side, near leftmost trash)
+      - y is fixed at 80; that puts the bristle tip at SVG-y ≈ 392,
+        just below the floor line at y=385, so the bristles look like
+        they touch the ground.
+  */
+  const dustContainer = document.getElementById("dust-container");
+  const broomEl = document.getElementById("broom");
+  const broomInner = document.getElementById("broom-inner");
+  const trash = gsap.utils.toArray(".trash");
+
+  // Absolute SVG-x positions for sweep endpoints.
+  const SWEEP_FROM_X = 380;     // right edge of visible stage
+  const SWEEP_TO_X = 100;       // left edge of visible stage
+  const BROOM_Y = 75;           // vertical position; keeps bristle tip on floor
+
+  // The handle is centered on the broom group's local x=0, so tipX equals
+  // the broom's current absolute x.
+  function tipXAt(absX) {
+    return absX;
+  }
+
+  // Place broom and reset trash visibility for a fresh loop.
+  function resetStage() {
+    gsap.set(broomEl, { x: SWEEP_FROM_X, y: BROOM_Y });
+    gsap.set(broomInner, { rotation: -6, transformOrigin: "0% 0%" });
+    gsap.set(trash, { opacity: 1, scale: 1, y: 0 });
+    trash.forEach((t) => t.removeAttribute("data-cleaned"));
+  }
+
+  // Spawn dust particles at given (x, y) position in SVG space.
+  function spawnDust(x, y, count = 4) {
+    for (let i = 0; i < count; i++) {
+      const ns = "http://www.w3.org/2000/svg";
+      const dot = document.createElementNS(ns, "rect");
+      const size = gsap.utils.random(4, 8);
+      const cx = x + gsap.utils.random(-25, 25);
+      dot.setAttribute("x", cx);
+      dot.setAttribute("y", y);
+      dot.setAttribute("width", size);
+      dot.setAttribute("height", size);
+      dot.setAttribute("fill", gsap.utils.random([
+        "#ff6b35", "#ffd23f", "#4dd99a", "#0d2a1d"
+      ]));
+      dot.setAttribute("opacity", "0.85");
+      dot.setAttribute("transform", `rotate(${gsap.utils.random(-30, 30)} ${cx + size/2} ${y + size/2})`);
+      dustContainer.appendChild(dot);
+
+      gsap.to(dot, {
+        attr: {
+          x: cx + gsap.utils.random(-60, 60),
+          y: y - gsap.utils.random(80, 160),
+        },
+        opacity: 0,
+        duration: gsap.utils.random(0.9, 1.6),
+        ease: "power1.out",
+        onComplete: () => dot.remove(),
+      });
+    }
+  }
+
+  // Master sweep loop.
+  function sweep() {
+    resetStage();
+
+    const tl = gsap.timeline({ onComplete: sweep });
+
+    // Anticipation pause
+    tl.to({}, { duration: 0.4 });
+
+    // Sweep right → left across the visible floor area
+    tl.to(broomEl, {
+      x: SWEEP_TO_X,
+      duration: 3.0,
+      ease: "power1.inOut",
+      onUpdate: function () {
+        // Read current absolute SVG-x via gsap.getProperty
+        const absX = gsap.getProperty(broomEl, "x");
+        const tipX = tipXAt(absX);
+        const tipY = 360;        // approximate floor contact point
+
+        // Emit dust occasionally
+        if (Math.random() < 0.32) {
+          spawnDust(tipX, tipY, 3);
+        }
+
+        // Hide trash items the bristles have passed over.
+        // Broom moves left, so anything to the right of tipX has already
+        // been "swept" (we use a +12 px tolerance for the bristle width).
+        trash.forEach((t) => {
+          if (t.getAttribute("data-cleaned") === "1") return;
+          const bbox = t.getBBox();
+          const tx = bbox.x + bbox.width / 2;
+          if (tipX < tx + 12) {
+            t.setAttribute("data-cleaned", "1");
+            gsap.to(t, {
+              opacity: 0,
+              scale: 0.4,
+              y: -30,
+              duration: 0.5,
+              ease: "power2.in",
+              transformOrigin: "center",
+            });
+          }
+        });
+      },
+    }, 0.4);
+
+    // Bristle wiggle while sweeping — adds life
+    tl.to(broomInner, {
+      rotation: -2,
+      yoyo: true,
+      repeat: 7,
+      duration: 0.22,
+      ease: "sine.inOut",
+      transformOrigin: "0% 0%",
+    }, 0.4);
+
+    // Pause at end before reset
+    tl.to({}, { duration: 0.6 });
+  }
+
+  // Respect prefers-reduced-motion.
+  const mm = gsap.matchMedia();
+  mm.add("(prefers-reduced-motion: no-preference)", () => {
+    sweep();
+    return () => gsap.killTweensOf([broomEl, broomInner, trash]);
+  });
+  mm.add("(prefers-reduced-motion: reduce)", () => {
+    resetStage();
+    return () => {};
+  });
+</script>
+
+</body>
+</html>

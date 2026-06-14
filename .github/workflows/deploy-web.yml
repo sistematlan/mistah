@@ -1,0 +1,46 @@
+# Web deployment — publishes the static HTML site under web/ to GitHub Pages
+# on every push to main that touches web/ or this workflow.
+#
+# The site is served at mistah.sistematlan.com once DNS + custom domain
+# are configured (see web/CNAME).
+#
+# Why no build step? The site is plain HTML/CSS/JS. Astro adds zero value
+# for a single page; we'll migrate when blog or docs are added.
+name: Deploy web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Avoid concurrent deploys racing each other.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
