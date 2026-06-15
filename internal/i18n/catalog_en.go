@@ -169,6 +169,9 @@ var english = map[string]string{
 	"device.ipsw.detail.simple":   "iOS installer for %s (version %s); Apple re-serves on demand",
 	"device.ipsw.detail.advanced": ".ipsw firmware for %s %s; Apple re-serves on demand",
 
+	"device.ios-backup.detail.simple":   "Backup of %s; last backed up %d days ago",
+	"device.ios-backup.detail.advanced": "MobileSync backup of %s, mtime %d days ago; review before deleting",
+
 	// ---- App caches (Spotify, Slack, Discord, Zoom, Teams, etc.) ----
 	// Single key with %s = app name. Avoids 60 keys for 30 apps × 2 langs.
 	"appcache.detail.simple":   "Cache for %s; the app rebuilds it on use",

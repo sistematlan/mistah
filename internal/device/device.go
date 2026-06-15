@@ -25,7 +25,9 @@ func Scan() ([]item.Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	return scanIPSW(home), nil
+	items := scanIPSW(home)
+	items = append(items, ScanIOSBackups(home)...)
+	return items, nil
 }
 
 // ScanIPSW exposes the .ipsw detector for tests and for direct use by
