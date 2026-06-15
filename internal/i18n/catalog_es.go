@@ -135,6 +135,24 @@ var spanish = map[string]string{
 	"downloads.large-other.detail.simple":          "Archivo grande — revisa antes de borrar",
 	"downloads.large-other.detail.advanced":        "archivo grande sin clasificar — revisa antes de borrar",
 
+	// ---- System (Trash, Mail, QuickLook) ----
+	"system.trash.name":            "Papelera",
+	"system.trash.detail.simple":   "%d archivos en la papelera (el más viejo, hace %d días)",
+	"system.trash.detail.advanced": "%d items, el más viejo de hace %d días; vaciar es definitivo",
+
+	"system.mail-downloads.name":            "Adjuntos de Mail",
+	"system.mail-downloads.detail.simple":   "Archivos descargados desde correos; Mail los vuelve a bajar al abrirlos",
+	"system.mail-downloads.detail.advanced": "adjuntos descargados de Mail; se redescargan on demand",
+
+	"system.quicklook.name":            "Miniaturas de QuickLook",
+	"system.quicklook.detail.simple":   "Vistas previas de Finder; macOS las regenera al usarlas",
+	"system.quicklook.detail.advanced": "caché de thumbnails de QuickLook; macOS la repuebla on demand",
+
+	// ---- Device (.ipsw firmware caches) ----
+	"device.ipsw.name":            "Actualización de iOS",
+	"device.ipsw.detail.simple":   "Instalador de iOS para %s (versión %s); Apple lo vuelve a ofrecer",
+	"device.ipsw.detail.advanced": "firmware .ipsw para %s %s; Apple re-sirve on demand",
+
 	// ---- Categories ----
 	"category.cache.simple":     "Archivos temporales de herramientas de desarrollo",
 	"category.cache.advanced":   "Cachés de desarrollo",
@@ -142,6 +160,10 @@ var spanish = map[string]string{
 	"category.orphan.advanced":  "Datos huérfanos",
 	"category.download.simple":  "Archivos en tu carpeta de Descargas",
 	"category.download.advanced": "Descargas",
+	"category.system.simple":    "Espacio que macOS y sus apps acumulan con el uso",
+	"category.system.advanced":  "Sistema (Papelera, Mail, QuickLook, snapshots)",
+	"category.device.simple":    "Datos de tu iPhone, iPad u otros dispositivos sincronizados",
+	"category.device.advanced":  "Dispositivos sincronizados",
 
 	// ---- Common UI strings ----
 	"ui.size":         "tamaño",

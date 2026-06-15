@@ -65,6 +65,7 @@ type Remover interface {
 
 // Resolver picks a Remover for an item. The default resolver maps:
 //   - Docker reclaimable → DockerPruneRemover
+//   - Trash → TrashContentsRemover (wipes children, keeps ~/.Trash dir alive)
 //   - everything else with a non-empty Path → PathRemover
 type Resolver func(it item.Item) (Remover, error)
 
@@ -72,6 +73,9 @@ type Resolver func(it item.Item) (Remover, error)
 func DefaultResolver(it item.Item) (Remover, error) {
 	if it.Tool == "docker" && it.Path == "" {
 		return DockerPruneRemover{}, nil
+	}
+	if it.Tool == "trash" && it.Path != "" {
+		return TrashContentsRemover{}, nil
 	}
 	if it.Path == "" {
 		return nil, fmt.Errorf("item %q has no Path and no specialized remover", it.Name)
@@ -188,6 +192,12 @@ func viewItem(it item.Item, remover Remover) string {
 	switch r := remover.(type) {
 	case PathRemover:
 		return r.previewPath(it.Path)
+	case TrashContentsRemover:
+		// The trash preview is identical in spirit to PathRemover's:
+		// list immediate children so the user can sanity-check what
+		// they're about to lose. Reuse PathRemover.previewPath rather
+		// than re-implementing the same logic.
+		return PathRemover{}.previewPath(it.Path)
 	case DockerPruneRemover:
 		out, _ := exec.Command("docker", "system", "df").Output()
 		return string(out)
@@ -372,6 +382,60 @@ func (DockerPruneRemover) Remove(it item.Item) error {
 		return fmt.Errorf("docker prune failed: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// TrashContentsRemover wipes the contents of a Trash directory while
+// keeping the directory itself in place. macOS Finder treats ~/.Trash
+// as a special location and stops working correctly if the directory
+// disappears, so a plain os.RemoveAll on it is wrong even though it
+// would technically free the same bytes.
+//
+// Children are removed individually with os.RemoveAll so subdirectories
+// are wiped recursively. Errors on individual children are tolerated:
+// macOS sometimes places files with restricted permissions (especially
+// from app sandboxes) and a permission-denied on one item should not
+// block the rest. The first error seen is returned at the end so the
+// cleaner reports the failure, but the bulk of the trash still gets
+// emptied.
+//
+// The path is validated against SafeRoots and OffLimits via the same
+// helpers used by PathRemover before any deletion happens.
+type TrashContentsRemover struct{}
+
+func (TrashContentsRemover) Describe(it item.Item) string {
+	return fmt.Sprintf("vaciar Trash (%s)", it.Path)
+}
+
+func (TrashContentsRemover) Remove(it item.Item) error {
+	if it.Path == "" {
+		return errors.New("empty path")
+	}
+	abs, err := filepath.Abs(it.Path)
+	if err != nil {
+		return err
+	}
+	if !isUnderSafeRoot(abs) {
+		return fmt.Errorf("%w: %s", ErrUnsafePath, abs)
+	}
+	// The Trash directory itself is not in OffLimits, but a future
+	// detector mistake (e.g. reporting ~/Documents as the trash path)
+	// is exactly the case OffLimits exists to catch.
+	if isOffLimits(abs) {
+		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
+	}
+
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, e := range entries {
+		child := filepath.Join(abs, e.Name())
+		if rmErr := os.RemoveAll(child); rmErr != nil && firstErr == nil {
+			firstErr = rmErr
+		}
+	}
+	return firstErr
 }
 
 // Summary aggregates Run results for the final report.

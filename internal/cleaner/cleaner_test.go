@@ -352,3 +352,54 @@ func TestPathRemover_OffLimitsBoundary(t *testing.T) {
 		t.Fatalf("file should be gone, stat err=%v", statErr)
 	}
 }
+
+// TestTrashContentsRemover_KeepsRoot: TrashContentsRemover must wipe
+// children but keep the ~/.Trash directory itself in place. macOS Finder
+// and the system relies on that path existing.
+func TestTrashContentsRemover_KeepsRoot(t *testing.T) {
+	home := withFakeHome(t)
+	trashDir := filepath.Join(home, ".Trash")
+	if err := os.MkdirAll(trashDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Mix of file and directory children, so we exercise the recursive
+	// branch of os.RemoveAll on subfolders too.
+	if err := os.WriteFile(filepath.Join(trashDir, "old.dmg"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	subdir := filepath.Join(trashDir, "ProjectFolder")
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subdir, "file.txt"), []byte("y"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := TrashContentsRemover{}
+	if err := r.Remove(item.Item{Tool: "trash", Path: trashDir}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if _, err := os.Stat(trashDir); err != nil {
+		t.Fatalf("~/.Trash must still exist after wipe: %v", err)
+	}
+	entries, err := os.ReadDir(trashDir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("Trash should be empty, has %d entries", len(entries))
+	}
+}
+
+// TestDefaultResolver_PicksTrash: an item with Tool=trash must resolve
+// to TrashContentsRemover so the wizard never accidentally calls
+// os.RemoveAll on ~/.Trash itself.
+func TestDefaultResolver_PicksTrash(t *testing.T) {
+	r, err := DefaultResolver(item.Item{Tool: "trash", Path: "/some/path"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.(TrashContentsRemover); !ok {
+		t.Fatalf("expected TrashContentsRemover, got %T", r)
+	}
+}

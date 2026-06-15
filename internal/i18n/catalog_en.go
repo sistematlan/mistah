@@ -149,6 +149,24 @@ var english = map[string]string{
 	"downloads.large-other.detail.simple":          "Large file — review before deleting",
 	"downloads.large-other.detail.advanced":        "unclassified large file — review before deleting",
 
+	// ---- System (Trash, Mail, QuickLook) ----
+	"system.trash.name":            "Trash",
+	"system.trash.detail.simple":   "%d files in the Trash (oldest %d days ago)",
+	"system.trash.detail.advanced": "%d items, oldest %d days; emptying is permanent",
+
+	"system.mail-downloads.name":            "Mail attachments",
+	"system.mail-downloads.detail.simple":   "Files downloaded from emails; Mail re-fetches them when needed",
+	"system.mail-downloads.detail.advanced": "Mail attachment downloads cache; re-fetched on demand",
+
+	"system.quicklook.name":            "QuickLook thumbnails",
+	"system.quicklook.detail.simple":   "Finder previews; macOS regenerates them on use",
+	"system.quicklook.detail.advanced": "QuickLook thumbnail cache; macOS repopulates on demand",
+
+	// ---- Device (.ipsw firmware caches) ----
+	"device.ipsw.name":            "iOS update",
+	"device.ipsw.detail.simple":   "iOS installer for %s (version %s); Apple re-serves on demand",
+	"device.ipsw.detail.advanced": ".ipsw firmware for %s %s; Apple re-serves on demand",
+
 	// ---- Categories (subcommand groupings) ----
 	"category.cache.simple":   "Temporary files of dev tools",
 	"category.cache.advanced": "Developer caches",
@@ -156,6 +174,10 @@ var english = map[string]string{
 	"category.orphan.advanced": "Orphan data",
 	"category.download.simple":  "Files in your Downloads folder",
 	"category.download.advanced": "Downloads",
+	"category.system.simple":    "Space macOS and its apps build up over time",
+	"category.system.advanced":  "System (Trash, Mail, QuickLook, snapshots)",
+	"category.device.simple":    "Data from your iPhone, iPad and synced devices",
+	"category.device.advanced":  "Synced devices",
 
 	// ---- Common UI strings ----
 	"ui.size":         "size",
