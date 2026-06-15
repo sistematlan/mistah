@@ -33,14 +33,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sistematlan/mistah/internal/appcache"
-	"github.com/sistematlan/mistah/internal/caches"
-	"github.com/sistematlan/mistah/internal/device"
-	"github.com/sistematlan/mistah/internal/dev"
-	"github.com/sistematlan/mistah/internal/downloads"
+	"github.com/sistematlan/mistah/internal/inventory"
 	"github.com/sistematlan/mistah/internal/item"
-	"github.com/sistematlan/mistah/internal/orphans"
-	"github.com/sistematlan/mistah/internal/system"
 )
 
 // Level enumerates the wizard presets.
@@ -67,89 +61,16 @@ func (l Level) String() string {
 }
 
 // Inventory is the snapshot the wizard scans before showing the menu.
-// One field per source so level-filtering stays a matter of picking
-// buckets, not re-classifying items.
 //
-//	Caches      dev tool caches (npm, brew, Docker, JetBrains, Xcode…)
-//	Orphans     leftover data from uninstalled apps
-//	Downloads   smart candidates from ~/Downloads
-//	System      OS + consumer-app reclaimable data (Trash, Mail, QuickLook,
-//	            logs, crash reports, TM snapshots, app & browser caches)
-//	Device      synced-device data (iOS backups, .ipsw firmware)
-//	DevAdvanced heavier dev artefacts that need shelling out (stale Xcode
-//	            simulators). Kept apart from Caches because they're
-//	            RiskAskBefore and only relevant to devs.
-type Inventory struct {
-	Caches      []item.Item
-	Orphans     []item.Item
-	Downloads   []item.Item
-	System      []item.Item
-	Device      []item.Item
-	DevAdvanced []item.Item
-}
+// It is an alias for inventory.Inventory: the orchestration moved to the
+// neutral inventory package in Phase 2 so `mistah clean`/`scan` can share
+// it without importing the wizard. The alias keeps every existing wizard
+// caller and test compiling unchanged.
+type Inventory = inventory.Inventory
 
-// TotalBytes sums every item the wizard knows about.
-func (inv Inventory) TotalBytes() int64 {
-	return item.TotalBytes(inv.Caches) +
-		item.TotalBytes(inv.Orphans) +
-		item.TotalBytes(inv.Downloads) +
-		item.TotalBytes(inv.System) +
-		item.TotalBytes(inv.Device) +
-		item.TotalBytes(inv.DevAdvanced)
-}
-
-// Scan collects every detector output. It is a thin orchestrator that
-// the wizard calls once per session.
-//
-// A failure in any single detector aborts the scan: a half-populated
-// inventory would show the user misleading totals. The detectors
-// themselves treat missing paths as "no items", so errors here are
-// genuinely unexpected I/O failures worth surfacing.
-func Scan() (Inventory, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return Inventory{}, err
-	}
-
-	cs, err := caches.Scan()
-	if err != nil {
-		return Inventory{}, err
-	}
-	orph, err := orphans.Scan()
-	if err != nil {
-		return Inventory{}, err
-	}
-	ds, err := downloads.Scan()
-	if err != nil {
-		return Inventory{}, err
-	}
-	sys, err := system.Scan()
-	if err != nil {
-		return Inventory{}, err
-	}
-	dv, err := device.Scan()
-	if err != nil {
-		return Inventory{}, err
-	}
-
-	// System data spans two packages: system/ (OS data) and appcache/
-	// (consumer app + browser caches). Both are CategorySystem; merge
-	// them into one bucket so the wizard treats them uniformly.
-	appCaches, err := appcache.Scan()
-	if err != nil {
-		return Inventory{}, err
-	}
-	sys = append(sys, appCaches...)
-
-	return Inventory{
-		Caches:      cs,
-		Orphans:     orph,
-		Downloads:   downloads.AsItems(ds),
-		System:      sys,
-		Device:      dv,
-		DevAdvanced: dev.ScanXcodeSimulators(home),
-	}, nil
-}
+// Scan collects every detector output. Re-exported from the inventory
+// package so wizard callers don't need to know it moved.
+var Scan = inventory.Scan
 
 // PlanFor returns the items that the given level would attempt to remove.
 // The same Inventory snapshot is used so totals match what the user saw
