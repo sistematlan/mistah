@@ -155,6 +155,12 @@ var english = map[string]string{
 	"system.quicklook.detail.simple":   "Finder previews; macOS regenerates them on use",
 	"system.quicklook.detail.advanced": "QuickLook thumbnail cache; macOS repopulates on demand",
 
+	"system.logs.detail.simple":   "Old %s logs; the app rewrites them as you use it",
+	"system.logs.detail.advanced": "%s logs under ~/Library/Logs (regenerable)",
+
+	"system.crash-reports.detail.simple":   "%d old crash reports (older than %d days)",
+	"system.crash-reports.detail.advanced": "%d crash reports with mtime > %d days",
+
 	// ---- Device (.ipsw firmware caches) ----
 	"device.ipsw.name":            "iOS update",
 	"device.ipsw.detail.simple":   "iOS installer for %s (version %s); Apple re-serves on demand",

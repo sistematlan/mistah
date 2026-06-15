@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/sistematlan/mistah/internal/item"
 )
@@ -66,6 +67,7 @@ type Remover interface {
 // Resolver picks a Remover for an item. The default resolver maps:
 //   - Docker reclaimable → DockerPruneRemover
 //   - Trash → TrashContentsRemover (wipes children, keeps ~/.Trash dir alive)
+//   - Crash reports → OldFilesRemover (only files older than the cutoff)
 //   - everything else with a non-empty Path → PathRemover
 type Resolver func(it item.Item) (Remover, error)
 
@@ -76,6 +78,15 @@ func DefaultResolver(it item.Item) (Remover, error) {
 	}
 	if it.Tool == "trash" && it.Path != "" {
 		return TrashContentsRemover{}, nil
+	}
+	if it.Tool == "crash-reports" && it.Path != "" {
+		// 30-day cutoff matches scanCrashReports' detection window.
+		// Defined here, not in the Item, so the cleaner stays the
+		// single source of truth for what gets deleted.
+		return OldFilesRemover{
+			MaxAgeDays: 30,
+			Extensions: []string{".crash", ".diag", ".ips", ".spin", ".hang"},
+		}, nil
 	}
 	if it.Path == "" {
 		return nil, fmt.Errorf("item %q has no Path and no specialized remover", it.Name)
@@ -436,6 +447,87 @@ func (TrashContentsRemover) Remove(it item.Item) error {
 		}
 	}
 	return firstErr
+}
+
+// OldFilesRemover deletes files inside a directory that are both older
+// than MaxAgeDays AND match one of the Extensions. The directory itself
+// stays in place; only matching files are removed (no recursion).
+//
+// This is the right shape for crash reports: we want to free old .crash
+// files without wiping a recent debugging session, and we don't want a
+// stray .DS_Store next to the reports to ever be deleted.
+//
+// MaxAgeDays must be > 0; a value of 0 would be interpreted as "delete
+// everything created today" which is dangerous and almost never what
+// the caller meant. Extensions match case-insensitively.
+//
+// Per-file errors are tolerated: a permission-denied on one file doesn't
+// stop the rest. The first error seen is returned at the end.
+type OldFilesRemover struct {
+	MaxAgeDays int
+	Extensions []string // case-insensitive, must include the leading dot
+}
+
+func (r OldFilesRemover) Describe(it item.Item) string {
+	return fmt.Sprintf("borrar archivos >%d días en %s", r.MaxAgeDays, it.Path)
+}
+
+func (r OldFilesRemover) Remove(it item.Item) error {
+	if it.Path == "" {
+		return errors.New("empty path")
+	}
+	if r.MaxAgeDays <= 0 {
+		return errors.New("OldFilesRemover requires MaxAgeDays > 0")
+	}
+	abs, err := filepath.Abs(it.Path)
+	if err != nil {
+		return err
+	}
+	if !isUnderSafeRoot(abs) {
+		return fmt.Errorf("%w: %s", ErrUnsafePath, abs)
+	}
+	if isOffLimits(abs) {
+		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
+	}
+
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		return err
+	}
+	cutoff := time.Now().Add(-time.Duration(r.MaxAgeDays) * 24 * time.Hour)
+	var firstErr error
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if !r.matchesExt(e.Name()) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(cutoff) {
+			continue // newer than cutoff: keep
+		}
+		full := filepath.Join(abs, e.Name())
+		if rmErr := os.Remove(full); rmErr != nil && firstErr == nil {
+			firstErr = rmErr
+		}
+	}
+	return firstErr
+}
+
+// matchesExt is case-insensitive suffix matching against r.Extensions.
+// Centralised so the regression test can call it directly.
+func (r OldFilesRemover) matchesExt(name string) bool {
+	lower := strings.ToLower(name)
+	for _, ext := range r.Extensions {
+		if strings.HasSuffix(lower, strings.ToLower(ext)) {
+			return true
+		}
+	}
+	return false
 }
 
 // Summary aggregates Run results for the final report.

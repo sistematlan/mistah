@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/sistematlan/mistah/internal/item"
 )
@@ -401,5 +402,94 @@ func TestDefaultResolver_PicksTrash(t *testing.T) {
 	}
 	if _, ok := r.(TrashContentsRemover); !ok {
 		t.Fatalf("expected TrashContentsRemover, got %T", r)
+	}
+}
+
+// TestDefaultResolver_PicksOldFiles: crash-reports tool maps to the
+// age-filtered OldFilesRemover with the canonical extensions list.
+// Without this mapping, a crash-reports item would fall through to
+// PathRemover and wipe the whole DiagnosticReports directory including
+// the user's recent debugging session.
+func TestDefaultResolver_PicksOldFiles(t *testing.T) {
+	r, err := DefaultResolver(item.Item{Tool: "crash-reports", Path: "/some/path"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, ok := r.(OldFilesRemover)
+	if !ok {
+		t.Fatalf("expected OldFilesRemover, got %T", r)
+	}
+	if old.MaxAgeDays != 30 {
+		t.Errorf("MaxAgeDays = %d, want 30", old.MaxAgeDays)
+	}
+	if len(old.Extensions) == 0 {
+		t.Errorf("Extensions must not be empty")
+	}
+}
+
+// TestOldFilesRemover_OnlyOldFiles: the remover wipes files matching
+// the extension AND older than the cutoff, while keeping recent files
+// and unrelated extensions untouched.
+func TestOldFilesRemover_OnlyOldFiles(t *testing.T) {
+	withFakeHome(t)
+	tmp := t.TempDir()
+	old := filepath.Join(tmp, "old.crash")
+	recent := filepath.Join(tmp, "recent.crash")
+	other := filepath.Join(tmp, "notes.txt")
+	for _, p := range []string{old, recent, other} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	if err := os.Chtimes(old, now.AddDate(0, 0, -60), now.AddDate(0, 0, -60)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(recent, now.AddDate(0, 0, -1), now.AddDate(0, 0, -1)); err != nil {
+		t.Fatal(err)
+	}
+	// other.txt keeps the default mtime (now).
+
+	r := OldFilesRemover{MaxAgeDays: 30, Extensions: []string{".crash"}}
+	if err := r.Remove(item.Item{Tool: "crash-reports", Path: tmp}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("old.crash should be gone, stat err=%v", err)
+	}
+	if _, err := os.Stat(recent); err != nil {
+		t.Errorf("recent.crash should still exist, got %v", err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("notes.txt should still exist, got %v", err)
+	}
+}
+
+// TestOldFilesRemover_RejectsZeroAge: MaxAgeDays=0 is a misconfiguration
+// (would mean "delete everything created today"). Must error rather
+// than silently obey, because callers passing 0 almost certainly meant
+// to pass a real number.
+func TestOldFilesRemover_RejectsZeroAge(t *testing.T) {
+	r := OldFilesRemover{MaxAgeDays: 0, Extensions: []string{".crash"}}
+	err := r.Remove(item.Item{Path: t.TempDir()})
+	if err == nil {
+		t.Fatal("expected error when MaxAgeDays <= 0")
+	}
+}
+
+// TestOldFilesRemover_RespectsOffLimits: even with valid age and
+// extensions, OldFilesRemover refuses to touch a path inside OffLimits.
+// Defense in depth on top of the detector's own discipline.
+func TestOldFilesRemover_RespectsOffLimits(t *testing.T) {
+	home := withFakeHome(t)
+	docs := filepath.Join(home, "Documents") // pre-seeded by withFakeHome
+	if err := os.WriteFile(filepath.Join(docs, "report.crash"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := OldFilesRemover{MaxAgeDays: 1, Extensions: []string{".crash"}}
+	err := r.Remove(item.Item{Path: docs})
+	if !errors.Is(err, ErrOffLimits) {
+		t.Fatalf("expected ErrOffLimits, got %v", err)
 	}
 }

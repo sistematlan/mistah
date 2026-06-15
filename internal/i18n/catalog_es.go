@@ -141,6 +141,12 @@ var spanish = map[string]string{
 	"system.quicklook.detail.simple":   "Vistas previas de Finder; macOS las regenera al usarlas",
 	"system.quicklook.detail.advanced": "caché de thumbnails de QuickLook; macOS la repuebla on demand",
 
+	"system.logs.detail.simple":   "Logs antiguos de %s; la app los regenera al usarse",
+	"system.logs.detail.advanced": "logs de %s en ~/Library/Logs (regenerable)",
+
+	"system.crash-reports.detail.simple":   "%d reportes de fallos antiguos (más de %d días)",
+	"system.crash-reports.detail.advanced": "%d crash reports con mtime > %d días",
+
 	// ---- Device (.ipsw firmware caches) ----
 	"device.ipsw.name":            "Actualización de iOS",
 	"device.ipsw.detail.simple":   "Instalador de iOS para %s (versión %s); Apple lo vuelve a ofrecer",

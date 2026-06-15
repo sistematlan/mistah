@@ -49,6 +49,8 @@ func ScanHome(home string) []item.Item {
 	if it, ok := quicklookThumbnails(home); ok {
 		items = append(items, it)
 	}
+	items = append(items, scanLogs(home)...)
+	items = append(items, scanCrashReports(home)...)
 	return items
 }
 
