@@ -167,6 +167,11 @@ var english = map[string]string{
 	"device.ipsw.detail.simple":   "iOS installer for %s (version %s); Apple re-serves on demand",
 	"device.ipsw.detail.advanced": ".ipsw firmware for %s %s; Apple re-serves on demand",
 
+	// ---- App caches (Spotify, Slack, Discord, Zoom, Teams, etc.) ----
+	// Single key with %s = app name. Avoids 60 keys for 30 apps × 2 langs.
+	"appcache.detail.simple":   "Cache for %s; the app rebuilds it on use",
+	"appcache.detail.advanced": "%s cache (regenerable on demand)",
+
 	// ---- Categories (subcommand groupings) ----
 	"category.cache.simple":   "Temporary files of dev tools",
 	"category.cache.advanced": "Developer caches",
