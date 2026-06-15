@@ -2,8 +2,10 @@
 
 > *mistah* (maya yucateco): «él que barre», del verbo *mis* (barrer).
 
-CLI open-source para macOS que limpia tu disco como desarrollador.
-Detecta cachés de desarrollo, datos huérfanos y archivos olvidados.
+CLI open-source para macOS que recupera los gigabytes que tu Mac acumula
+con el tiempo: papelera, backups viejos de iPhone, cachés de apps,
+snapshots de Time Machine, adjuntos de Mail y más. Si además eres
+desarrollador, también limpia tus cachés de dev (npm, Docker, Xcode…).
 Cero telemetría. Código auditable. MIT.
 
 🌐 https://mistah.sistematlan.com
@@ -35,18 +37,46 @@ mistah --advanced --help        # mostrar todos los comandos avanzados
 
 | Nivel | Qué incluye |
 |---|---|
-| **Ligera** | Solo cachés seguras (npm, brew, pip, uv, etc.) |
-| **Estándar** | + Docker prune + JetBrains old + Xcode artifacts |
-| **Profunda** | + datos huérfanos + candidatos en Downloads |
+| **Ligera** | Cachés de apps (Spotify, Slack, navegadores), papelera, miniaturas de QuickLook, adjuntos de Mail, firmware iOS redundante, cachés seguros de dev |
+| **Estándar** | + snapshots de Time Machine, logs y reportes de fallos. Para devs: Docker prune, JetBrains, artefactos de Xcode |
+| **Profunda** | + datos huérfanos, candidatos en Downloads, backups de iPhone/iPad, simuladores Xcode obsoletos. Pregunta por cada archivo que pueda ser tuyo |
+
+El wizard detecta automáticamente si tienes herramientas de desarrollo y
+ajusta lo que muestra. Un usuario sin entorno de dev nunca ve "Docker prune".
+
+### Qué detecta
+
+**Para cualquier Mac:**
+
+| Categoría | Detalle |
+|---|---|
+| 🗑️ Papelera | `~/.Trash` (vaciado, no borra la carpeta) |
+| 📱 Backups de iPhone/iPad | `MobileSync/Backup` — suelen ser 4-15 GB cada uno |
+| 🎵 Cachés de apps | Spotify, Slack, Discord, Telegram, Zoom, Teams, Notion, Figma, Linear, Arc |
+| 🌐 Cachés de navegadores | Chrome, Safari, Firefox, Brave, Edge |
+| ⏱️ Snapshots de Time Machine | snapshots locales que macOS retiene |
+| 📨 Adjuntos de Mail | descargas que Mail.app vuelve a bajar |
+| 🖼️ Miniaturas de QuickLook | cache que macOS regenera |
+| 📦 Actualizaciones iOS (.ipsw) | firmware que Apple re-sirve |
+| 📋 Logs y crash reports | logs viejos + reportes >30 días |
+
+**Para desarrolladores:**
+
+| Categoría | Detalle |
+|---|---|
+| 🧹 Cachés de dev | npm, pnpm, yarn, brew, pip, uv, Cargo, Go, Composer, node-gyp |
+| 🐳 Docker | `docker system prune` (sin tocar volúmenes) |
+| 🛠️ Xcode | DerivedData, Archives, DeviceSupport, simuladores obsoletos |
+| 💡 JetBrains | cachés de IDEs |
+| 🧠 Downloads | instaladores duplicados, ZIPs ya extraídos, dumps viejos, proyectos abandonados con node_modules |
 
 ## Características
 
-- 🧹 18+ detectores de caché (npm, pnpm, brew, JetBrains, Docker, Cargo, Xcode...)
-- 🧠 Clasificación inteligente de Downloads (instaladores duplicados, ZIPs ya extraídos, dumps viejos)
+- 🧹 30+ detectores entre sistema, dispositivos, apps y dev tools
+- 🛡️ Doble barrera de seguridad: `SafeRoots` (solo borra dentro de `$HOME` y `/tmp`) + `OffLimits` (jamás toca Documentos, Fotos, Escritorio, iCloud, Llaveros…)
+- ✋ Los datos que pueden ser tuyos (backups, papelera, dumps) requieren confirmación por ítem, incluso en el wizard
 - 🌐 Bilingüe — autodetecta `$LANG` (es / en)
 - 🔒 Cero telemetría, cero red, cero analytics
-- ✋ Confirmación explícita por ítem (modo `clean`) o por nivel (modo wizard)
-- 🛡️ `SafeRoots` — sólo borra dentro de `$HOME` y `/tmp`, jamás fuera
 
 ## Construir desde código
 
@@ -64,7 +94,8 @@ Requiere Go 1.26+.
 Ver [BACKLOG.md](BACKLOG.md). En curso:
 
 - `mistah report --json` para integración con scripts
-- Detectores P0 para v0.2.0: Electron caches, iOS Simulator, Time Machine snapshots, Mail/Messages
+- Cablear los detectores de sistema/dispositivo al comando `clean` granular
+- Detección de duplicados (fotos, PDFs) — evaluando
 - Apple notarization para que Gatekeeper no se queje al primer arranque
 - Soporte Linux (largo plazo)
 

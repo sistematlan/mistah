@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>mistah — Limpia tu Mac al estilo open-source</title>
-<meta name="description" content="CLI open-source para macOS que detecta cachés de desarrollo, datos huérfanos y archivos olvidados. Cero telemetría, código auditable, gratis.">
+<meta name="description" content="CLI open-source para macOS que recupera gigabytes: papelera, backups de iPhone, cachés de apps, snapshots de Time Machine y más. Cero telemetría, código auditable, gratis.">
 <meta name="theme-color" content="#0d2a1d">
 
 <!-- Favicons / app icons -->
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mistah.sistematlan.com">
 <meta property="og:title" content="mistah — Limpia tu Mac al estilo open-source">
-<meta property="og:description" content="CLI open-source para macOS que detecta cachés de desarrollo, datos huérfanos y archivos olvidados. Cero telemetría, código auditable, gratis.">
+<meta property="og:description" content="CLI open-source para macOS que recupera gigabytes: papelera, backups de iPhone, cachés de apps, snapshots de Time Machine y más. Cero telemetría, código auditable, gratis.">
 <meta property="og:image" content="https://mistah.sistematlan.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -477,16 +477,16 @@
 
 <header class="hero">
   <div class="hero-text">
-    <span class="patch">v0.1.0 · macOS · open-source · sin telemetría</span>
+    <span class="patch">v0.2.0 · macOS · open-source · sin telemetría</span>
     <h1>
       Tu disco<br/>está sucio.<br/>
       <span class="stripe">mistah</span> lo barre.
     </h1>
     <p class="lede">
-      Detecta los gigabytes que se esconden en tu Mac —
-      cachés, datos huérfanos, archivos olvidados.
-      <strong>Cero telemetría.</strong> Código auditable.
-      Gratis para siempre.
+      Recupera los gigabytes que tu Mac acumula con el tiempo —
+      papelera, backups viejos de iPhone, cachés de apps, snapshots,
+      adjuntos de Mail y más. <strong>Cero telemetría.</strong>
+      Código auditable. Gratis para siempre.
     </p>
     <div class="ctas">
       <a href="#install" class="btn btn-primary">INSTALAR ↓</a>
@@ -597,20 +597,20 @@
     <div class="level">
       <span class="badge">01 · LIGHT</span>
       <h4>Ligera</h4>
-      <div class="size">~3 GB</div>
-      <p>Solo cachés seguras. npm, brew, pip, uv. Sin sorpresas. Reversible total. Para empezar.</p>
+      <div class="size">~5 GB</div>
+      <p>Lo que toda Mac acumula: cachés de apps (Spotify, Slack, navegadores), papelera, miniaturas, adjuntos de Mail. Sin sorpresas.</p>
     </div>
     <div class="level">
       <span class="badge">02 · STANDARD</span>
       <h4>Estándar</h4>
-      <div class="size">~6 GB</div>
-      <p>Lo anterior + Docker prune + IDEs JetBrains + Xcode artifacts. El sweet spot.</p>
+      <div class="size">~20 GB</div>
+      <p>Lo anterior + snapshots de Time Machine, logs, reportes de fallos. Si eres dev, también Docker, Xcode y JetBrains.</p>
     </div>
     <div class="level">
       <span class="badge">03 · DEEP</span>
       <h4>Profunda</h4>
-      <div class="size">~12 GB</div>
-      <p>Todo + datos huérfanos + candidatos en Downloads. Para auditoría seria.</p>
+      <div class="size">~50 GB</div>
+      <p>Todo + backups viejos de iPhone, datos huérfanos y candidatos en Downloads. Te pregunta por cada archivo que pueda ser tuyo.</p>
     </div>
   </div>
 </section>
@@ -636,23 +636,23 @@
         <div class="dim"><span class="highlight">⠋</span> Escaneando tu disco...</div>
         <div>¿Qué tipo de limpieza quieres hacer?</div>
         <br/>
-        <div>  1) <span class="cmd">Ligera</span>      <span class="highlight">3.2 GB</span>  — Solo cachés seguras</div>
-        <div>  2) <span class="cmd">Estándar</span>   <span class="highlight">6.4 GB</span>  — + Docker + JetBrains</div>
-        <div>  3) <span class="cmd">Profunda</span>   <span class="highlight">12.1 GB</span> — + huérfanos + Downloads</div>
+        <div>  1) <span class="cmd">Ligera</span>      <span class="highlight">5.1 GB</span>  — cachés de apps, papelera, miniaturas</div>
+        <div>  2) <span class="cmd">Estándar</span>   <span class="highlight">21.3 GB</span> — + snapshots, logs, Docker, Xcode</div>
+        <div>  3) <span class="cmd">Profunda</span>   <span class="highlight">48.7 GB</span> — + backups de iPhone, Downloads</div>
         <div>  4) Cancelar</div>
         <br/>
         <div><span class="prompt">Opción [1-4]:</span> <span class="cmd">2</span></div>
         <br/>
-        <div>  Nivel: <span class="cmd">Estándar</span> · 13 ítems · <span class="highlight">6.4 GB</span></div>
+        <div>  Nivel: <span class="cmd">Estándar</span> · 27 ítems · <span class="highlight">21.3 GB</span></div>
         <div><span class="prompt">¿Continuar? [s/N]</span> <span class="cmd">s</span></div>
         <br/>
-        <div class="dim">borrando Docker reclaimable ... ok</div>
-        <div class="dim">borrando JetBrains cache ... ok</div>
-        <div class="dim">borrando Chrome cache ... ok</div>
+        <div class="dim">vaciando papelera ... ok</div>
+        <div class="dim">borrando caché de Spotify ... ok</div>
+        <div class="dim">liberando snapshots de Time Machine ... ok</div>
         <div class="dim">...</div>
         <br/>
-        <div>Resumen: <span class="highlight">13 eliminados</span>, 0 fallidos</div>
-        <div>Espacio liberado: <span class="highlight">6.4 GB</span></div>
+        <div>Resumen: <span class="highlight">27 eliminados</span>, 0 fallidos</div>
+        <div>Espacio liberado: <span class="highlight">21.3 GB</span></div>
       </div>
     </div>
   </div>
