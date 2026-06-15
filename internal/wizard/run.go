@@ -131,6 +131,12 @@ func printIntro(out io.Writer) {
 func readLevelChoice(scanner *bufio.Scanner, out io.Writer, totals LevelTotals) (Level, bool) {
 	fmt.Fprintln(out, i18n.T("wizard.menu.header"))
 	fmt.Fprintln(out)
+	// Discreet nod to developers when we detect a toolchain. The default
+	// copy stays general-audience; this line only appears on dev machines.
+	if DetectDevPresence() {
+		fmt.Fprintln(out, "  "+i18n.T("wizard.menu.dev-detected"))
+		fmt.Fprintln(out)
+	}
 	fmt.Fprintf(out, "  1) %-12s %-10s — %s\n",
 		i18n.T("wizard.level.light.name"),
 		disk.FormatBytes(totals.Light),
