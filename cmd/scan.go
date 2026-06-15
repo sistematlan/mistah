@@ -5,16 +5,15 @@ import (
 	"sort"
 
 	"github.com/sistematlan/mistah/internal/apps"
-	"github.com/sistematlan/mistah/internal/caches"
 	"github.com/sistematlan/mistah/internal/disk"
+	"github.com/sistematlan/mistah/internal/inventory"
 	"github.com/sistematlan/mistah/internal/item"
-	"github.com/sistematlan/mistah/internal/orphans"
 	"github.com/spf13/cobra"
 )
 
 var scanCmd = &cobra.Command{
 	Use:   "scan",
-	Short: "Escaneo completo: disco, apps, caches y datos hu\u00e9rfanos",
+	Short: "Escaneo completo: disco, apps y todo lo recuperable por categoría",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("=== mistah scan ===")
 		fmt.Println()
@@ -40,42 +39,52 @@ var scanCmd = &cobra.Command{
 		}
 		fmt.Printf("Apps instaladas: %d  (sin uso >90d: %d)\n\n", len(appList), unused)
 
-		// 3. Dev caches — safe to wipe.
-		cacheList, err := caches.Scan()
+		// 3. Full inventory, grouped by source. This is the same scan the
+		// wizard runs, so `scan` and the wizard never disagree on totals.
+		inv, err := inventory.Scan()
 		if err != nil {
 			return err
 		}
-		sort.Slice(cacheList, func(i, j int) bool { return cacheList[i].Bytes > cacheList[j].Bytes })
-		fmt.Printf("Caches dev: %s recuperables\n", disk.FormatBytes(item.TotalBytes(cacheList)))
-		for _, c := range topN(cacheList, 8) {
-			fmt.Printf("  %-30s %s\n", c.Name, disk.FormatBytes(c.Bytes))
-		}
-		if len(cacheList) > 8 {
-			fmt.Printf("  ... y %d m\u00e1s (mistah caches)\n", len(cacheList)-8)
-		}
-		fmt.Println()
 
-		// 4. Orphans — needs confirmation.
-		orphanList, err := orphans.Scan()
-		if err != nil {
-			return err
-		}
-		if len(orphanList) > 0 {
-			sort.Slice(orphanList, func(i, j int) bool { return orphanList[i].Bytes > orphanList[j].Bytes })
-			fmt.Printf("Datos hu\u00e9rfanos: %s (requieren confirmaci\u00f3n)\n",
-				disk.FormatBytes(item.TotalBytes(orphanList)))
-			for _, o := range orphanList {
-				fmt.Printf("  %-30s %s — %s\n", o.Name, disk.FormatBytes(o.Bytes), o.Detail)
-			}
-			fmt.Println()
+		groups := []struct {
+			title string
+			items []item.Item
+		}{
+			{"Sistema (papelera, cachés de apps, snapshots, Mail…)", inv.System},
+			{"Dispositivos (backups de iPhone/iPad, firmware iOS)", inv.Device},
+			{"Cachés de desarrollo", inv.Caches},
+			{"Datos huérfanos", inv.Orphans},
+			{"Candidatos en Downloads", inv.Downloads},
+			{"Simuladores Xcode obsoletos", inv.DevAdvanced},
 		}
 
-		// 5. Grand total.
-		grand := item.TotalBytes(cacheList) + item.TotalBytes(orphanList)
-		fmt.Printf("Recuperable estimado: %s\n", disk.FormatBytes(grand))
-		fmt.Println("Ejecuta `mistah clean --dry-run` para ver qu\u00e9 se borrar\u00eda.")
+		for _, g := range groups {
+			printGroup(g.title, g.items)
+		}
+
+		// 4. Grand total.
+		fmt.Printf("Recuperable estimado: %s\n", disk.FormatBytes(inv.TotalBytes()))
+		fmt.Println("Ejecuta `mistah clean --dry-run` para ver qué se borraría.")
 		return nil
 	},
+}
+
+// printGroup renders one category section: a header with the group total
+// and the top entries by size. Empty groups are skipped entirely so the
+// output stays tight on machines that don't have, say, iOS backups.
+func printGroup(title string, items []item.Item) {
+	if len(items) == 0 {
+		return
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Bytes > items[j].Bytes })
+	fmt.Printf("%s: %s recuperables\n", title, disk.FormatBytes(item.TotalBytes(items)))
+	for _, it := range topN(items, 8) {
+		fmt.Printf("  %-34s %s\n", it.HumanName(), disk.FormatBytes(it.Bytes))
+	}
+	if len(items) > 8 {
+		fmt.Printf("  ... y %d más\n", len(items)-8)
+	}
+	fmt.Println()
 }
 
 // topN returns the first n items, or all if the slice is shorter.
