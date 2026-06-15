@@ -68,6 +68,7 @@ type Remover interface {
 //   - Docker reclaimable → DockerPruneRemover
 //   - Trash → TrashContentsRemover (wipes children, keeps ~/.Trash dir alive)
 //   - Crash reports → OldFilesRemover (only files older than the cutoff)
+//   - Time Machine snapshots → TMSnapshotsRemover (calls tmutil)
 //   - everything else with a non-empty Path → PathRemover
 type Resolver func(it item.Item) (Remover, error)
 
@@ -87,6 +88,9 @@ func DefaultResolver(it item.Item) (Remover, error) {
 			MaxAgeDays: 30,
 			Extensions: []string{".crash", ".diag", ".ips", ".spin", ".hang"},
 		}, nil
+	}
+	if it.Tool == "tm-snapshots" {
+		return TMSnapshotsRemover{}, nil
 	}
 	if it.Path == "" {
 		return nil, fmt.Errorf("item %q has no Path and no specialized remover", it.Name)
@@ -528,6 +532,99 @@ func (r OldFilesRemover) matchesExt(name string) bool {
 		}
 	}
 	return false
+}
+
+// TMSnapshotsRemover deletes Time Machine local snapshots by shelling
+// out to `tmutil`. The detector in internal/system reports them with
+// Tool="tm-snapshots"; this remover lists them again at delete time
+// and runs `tmutil deletelocalsnapshots <date>` for each.
+//
+// Why list twice? The detector and remover are decoupled by design:
+// the detector lives in internal/system, the remover lives here so
+// the cleaner stays the single home of all deletion logic. Sharing
+// state through Item fields would force every Item to carry an opaque
+// blob of detector-specific data, which complicates the contract.
+// `tmutil listlocalsnapshots /` is fast (~50 ms) and idempotent — a
+// snapshot deleted between the two listings just doesn't appear on
+// the second pass, no error.
+//
+// Test seam: tmutilCommand is a package-level var so tests can mock
+// the binary without messing with PATH.
+type TMSnapshotsRemover struct{}
+
+func (TMSnapshotsRemover) Describe(_ item.Item) string {
+	return "tmutil deletelocalsnapshots <each>"
+}
+
+func (TMSnapshotsRemover) Remove(_ item.Item) error {
+	names, err := tmutilList()
+	if err != nil {
+		return fmt.Errorf("tmutil list failed: %w", err)
+	}
+	var firstErr error
+	for _, name := range names {
+		date := tmSnapshotDate(name)
+		if date == "" {
+			continue
+		}
+		if err := tmutilDelete(date); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// tmutilCommand is the test seam used by tmutilList and tmutilDelete.
+// Production points it at the real binary; tests inject a function
+// that returns canned output. The single seam covers both list and
+// delete invocations, so a mock can route by inspecting args[0].
+var tmutilCommand = func(args ...string) ([]byte, error) {
+	return exec.Command("tmutil", args...).CombinedOutput()
+}
+
+// tmutilList runs `tmutil listlocalsnapshots /` and returns snapshot
+// names. Failure here aborts the remover; we don't try to recover
+// from a missing tmutil since macOS always ships it.
+func tmutilList() ([]string, error) {
+	out, err := tmutilCommand("listlocalsnapshots", "/")
+	if err != nil {
+		return nil, err
+	}
+	const prefix = "com.apple.TimeMachine."
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, prefix) {
+			names = append(names, line)
+		}
+	}
+	return names, nil
+}
+
+// tmutilDelete asks tmutil to drop a single snapshot. The date string
+// is the part between "com.apple.TimeMachine." and ".local"; tmutil
+// rejects anything else with a non-zero exit code, which we surface.
+func tmutilDelete(date string) error {
+	out, err := tmutilCommand("deletelocalsnapshots", date)
+	if err != nil {
+		return fmt.Errorf("tmutil delete %s failed: %v: %s",
+			date, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// tmSnapshotDate extracts the date portion of a snapshot name.
+// Mirrors the detector's parsing in internal/system/snapshots.go;
+// kept inline here so the remover doesn't depend on the system
+// package (would create a cleaner ↔ system import cycle through
+// the resolver).
+func tmSnapshotDate(name string) string {
+	const prefix = "com.apple.TimeMachine."
+	const suffix = ".local"
+	if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+		return ""
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
 }
 
 // Summary aggregates Run results for the final report.

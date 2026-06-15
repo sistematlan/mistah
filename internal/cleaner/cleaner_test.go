@@ -493,3 +493,123 @@ func TestOldFilesRemover_RespectsOffLimits(t *testing.T) {
 		t.Fatalf("expected ErrOffLimits, got %v", err)
 	}
 }
+
+// withMockTmutil replaces the package-level tmutilCommand with a fake
+// that records args and returns canned output. The dispatcher checks
+// args[0] so a single mock can serve list and delete in the same test.
+//
+// Returns a pointer to a slice that accumulates every invocation, so
+// the test can assert "delete was called once per snapshot" etc.
+func withMockTmutil(t *testing.T, list []byte, listErr, deleteErr error) *[][]string {
+	t.Helper()
+	var calls [][]string
+	prev := tmutilCommand
+	tmutilCommand = func(args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{}, args...))
+		if len(args) == 0 {
+			return nil, errors.New("no args")
+		}
+		switch args[0] {
+		case "listlocalsnapshots":
+			return list, listErr
+		case "deletelocalsnapshots":
+			return nil, deleteErr
+		}
+		return nil, errors.New("unexpected tmutil call")
+	}
+	t.Cleanup(func() { tmutilCommand = prev })
+	return &calls
+}
+
+// TestDefaultResolver_PicksTMSnapshots: tm-snapshots tool maps to
+// TMSnapshotsRemover. Without this, a snapshots item would fall
+// through to PathRemover trying to os.RemoveAll "tmutil" and error
+// in confusing ways.
+func TestDefaultResolver_PicksTMSnapshots(t *testing.T) {
+	r, err := DefaultResolver(item.Item{Tool: "tm-snapshots", Path: "tmutil"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.(TMSnapshotsRemover); !ok {
+		t.Fatalf("expected TMSnapshotsRemover, got %T", r)
+	}
+}
+
+// TestTMSnapshotsRemover_DeletesEachListed: the remover lists
+// snapshots, then calls deletelocalsnapshots once per name. This
+// covers the canonical happy path on a normal Mac.
+func TestTMSnapshotsRemover_DeletesEachListed(t *testing.T) {
+	out := []byte(`Snapshots for volume group containing disk /:
+com.apple.TimeMachine.2024-06-15-090000.local
+com.apple.TimeMachine.2024-06-14-150000.local
+`)
+	calls := withMockTmutil(t, out, nil, nil)
+
+	r := TMSnapshotsRemover{}
+	if err := r.Remove(item.Item{Tool: "tm-snapshots"}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+
+	// 1 list + 2 deletes = 3 calls.
+	if len(*calls) != 3 {
+		t.Fatalf("expected 3 tmutil calls, got %d: %v", len(*calls), *calls)
+	}
+	if (*calls)[0][0] != "listlocalsnapshots" {
+		t.Errorf("first call should be listlocalsnapshots, got %v", (*calls)[0])
+	}
+	for i, c := range (*calls)[1:] {
+		if c[0] != "deletelocalsnapshots" {
+			t.Errorf("call %d should be deletelocalsnapshots, got %v", i+1, c)
+		}
+		// The argument must be just the date — no prefix, no .local.
+		if c[1] == "" || c[1] == "com.apple.TimeMachine.2024-06-15-090000.local" {
+			t.Errorf("delete arg should be a bare date, got %q", c[1])
+		}
+	}
+}
+
+// TestTMSnapshotsRemover_NoSnapshots: empty list → no deletes, no
+// error. Calling the remover on a clean system is a no-op.
+func TestTMSnapshotsRemover_NoSnapshots(t *testing.T) {
+	calls := withMockTmutil(t, []byte("Snapshots for volume group containing disk /:\n"), nil, nil)
+
+	r := TMSnapshotsRemover{}
+	if err := r.Remove(item.Item{Tool: "tm-snapshots"}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if len(*calls) != 1 {
+		t.Errorf("expected only the list call, got %d total: %v", len(*calls), *calls)
+	}
+}
+
+// TestTMSnapshotsRemover_ListFails: if tmutil itself can't list,
+// surface the error instead of silently succeeding.
+func TestTMSnapshotsRemover_ListFails(t *testing.T) {
+	withMockTmutil(t, nil, errors.New("tmutil bork"), nil)
+
+	r := TMSnapshotsRemover{}
+	err := r.Remove(item.Item{Tool: "tm-snapshots"})
+	if err == nil {
+		t.Fatal("expected error when list fails")
+	}
+}
+
+// TestTMSnapshotsRemover_DeleteFails: a delete failure on one snapshot
+// must not abort the rest. The first error is returned at the end.
+func TestTMSnapshotsRemover_DeleteFails(t *testing.T) {
+	out := []byte(`Snapshots for volume group containing disk /:
+com.apple.TimeMachine.2024-06-15-090000.local
+com.apple.TimeMachine.2024-06-14-150000.local
+`)
+	calls := withMockTmutil(t, out, nil, errors.New("locked snapshot"))
+
+	r := TMSnapshotsRemover{}
+	err := r.Remove(item.Item{Tool: "tm-snapshots"})
+	if err == nil {
+		t.Fatal("expected error to surface")
+	}
+	// Both deletes were attempted regardless of the first failure.
+	if len(*calls) != 3 {
+		t.Errorf("expected list + 2 delete attempts, got %d: %v", len(*calls), *calls)
+	}
+}

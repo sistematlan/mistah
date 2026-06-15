@@ -161,6 +161,9 @@ var english = map[string]string{
 	"system.crash-reports.detail.simple":   "%d old crash reports (older than %d days)",
 	"system.crash-reports.detail.advanced": "%d crash reports with mtime > %d days",
 
+	"system.snapshots.detail.simple":   "%d Time Machine local snapshots; macOS rebuilds them if needed",
+	"system.snapshots.detail.advanced": "%d TM local snapshots; tmutil deletelocalsnapshots per snapshot",
+
 	// ---- Device (.ipsw firmware caches) ----
 	"device.ipsw.name":            "iOS update",
 	"device.ipsw.detail.simple":   "iOS installer for %s (version %s); Apple re-serves on demand",
