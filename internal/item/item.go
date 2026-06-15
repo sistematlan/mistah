@@ -15,6 +15,15 @@ const (
 	CategoryDownload Category = "download"
 	CategoryProject  Category = "project"
 	CategoryApp      Category = "app"
+	// CategorySystem groups OS-level reclaimable data: Trash, Time Machine
+	// local snapshots, Mail Downloads, QuickLook thumbnails, app caches
+	// (Spotify, Slack, browsers, etc.). Not dev-specific. Not orphans
+	// (the owner app is still installed). Reproducible or trash by definition.
+	CategorySystem Category = "system"
+	// CategoryDevice groups data tied to a synced device: iOS backups
+	// under MobileSync, .ipsw firmware caches, etc. Sized in GBs and
+	// often only the user knows whether they need it; treat with care.
+	CategoryDevice Category = "device"
 )
 
 // Risk drives the cleaner's confirmation flow.

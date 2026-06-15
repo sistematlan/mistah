@@ -2,6 +2,7 @@ package cleaner
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -206,5 +207,148 @@ func TestDefaultResolver_PicksPath(t *testing.T) {
 func TestDefaultResolver_RejectsMalformed(t *testing.T) {
 	if _, err := DefaultResolver(item.Item{Tool: "npm", Path: ""}); err == nil {
 		t.Fatal("expected resolver to reject empty-path non-docker item")
+	}
+}
+
+// withFakeHome reroutes OffLimits and SafeRoots to a temporary directory
+// so off-limits checks can be exercised against real files without
+// touching the actual user home. Returns the fake-home path.
+//
+// Tests must call this via t.Cleanup; the helper restores the real
+// OffLimits and SafeRoots when the test finishes.
+//
+// Why both? OffLimits paths (e.g. ~/Documents) must live under a
+// SafeRoot or the SafeRoot check rejects them first and we'd never
+// reach the OffLimits check we're trying to test. Pointing both at
+// the same tempdir keeps the tests honest about the order of checks.
+func withFakeHome(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+
+	prevOff := OffLimits
+	prevSafe := SafeRoots
+	OffLimits = DefaultOffLimits(home)
+	SafeRoots = append([]string{home}, prevSafe...)
+	t.Cleanup(func() {
+		OffLimits = prevOff
+		SafeRoots = prevSafe
+	})
+
+	// Pre-create the off-limits dirs so tests can place real files inside
+	// them without doing it themselves.
+	for _, p := range OffLimits {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatalf("seed off-limits dir %s: %v", p, err)
+		}
+	}
+	return home
+}
+
+// TestPathRemover_RejectsOffLimits_Documents: ~/Documents (and any child)
+// must NEVER be deleted, even if a detector mistakenly reports it. This is
+// the headline guarantee of the OffLimits barrier.
+func TestPathRemover_RejectsOffLimits_Documents(t *testing.T) {
+	home := withFakeHome(t)
+	target := filepath.Join(home, "Documents", "important.txt")
+	if err := os.WriteFile(target, []byte("user data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := PathRemover{}.Remove(item.Item{Path: target})
+	if !errors.Is(err, ErrOffLimits) {
+		t.Fatalf("expected ErrOffLimits, got %v", err)
+	}
+	if _, statErr := os.Stat(target); statErr != nil {
+		t.Fatalf("file under ~/Documents must still exist: %v", statErr)
+	}
+}
+
+// TestPathRemover_RejectsOffLimits_PhotosLibrary: ~/Pictures itself is
+// off-limits, and so is anything inside (Photos library, screenshots,
+// the .photoslibrary bundle). Catches detectors that try to read inside
+// Photos and end up listing the library as a candidate.
+func TestPathRemover_RejectsOffLimits_PhotosLibrary(t *testing.T) {
+	home := withFakeHome(t)
+	target := filepath.Join(home, "Pictures", "Photos Library.photoslibrary")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := PathRemover{}.Remove(item.Item{Path: target})
+	if !errors.Is(err, ErrOffLimits) {
+		t.Fatalf("expected ErrOffLimits, got %v", err)
+	}
+	if _, statErr := os.Stat(target); statErr != nil {
+		t.Fatalf("Photos Library must still exist: %v", statErr)
+	}
+}
+
+// TestPathRemover_AllowsTrash: ~/.Trash is NOT off-limits. The Trash
+// detector must be able to clear it. This guards against the easy
+// over-correction of blacklisting too much of the home dir.
+func TestPathRemover_AllowsTrash(t *testing.T) {
+	home := withFakeHome(t)
+	trashDir := filepath.Join(home, ".Trash")
+	if err := os.MkdirAll(trashDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(trashDir, "old.dmg")
+	if err := os.WriteFile(target, []byte("trashed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := (PathRemover{}).Remove(item.Item{Path: target}); err != nil {
+		t.Fatalf("Trash file should be removable, got %v", err)
+	}
+	if _, statErr := os.Stat(target); !os.IsNotExist(statErr) {
+		t.Fatalf("Trash file should be gone, stat err=%v", statErr)
+	}
+}
+
+// TestPathRemover_AllowsLibraryCaches: ~/Library/Caches is the bread and
+// butter of mistah. It MUST stay deletable. Regression test: if anyone
+// ever adds ~/Library to OffLimits, every cache detector breaks.
+func TestPathRemover_AllowsLibraryCaches(t *testing.T) {
+	home := withFakeHome(t)
+	cacheDir := filepath.Join(home, "Library", "Caches", "com.spotify.client")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(cacheDir, "data.db")
+	if err := os.WriteFile(target, []byte("cache"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := (PathRemover{}).Remove(item.Item{Path: cacheDir}); err != nil {
+		t.Fatalf("Library cache should be removable, got %v", err)
+	}
+	if _, statErr := os.Stat(cacheDir); !os.IsNotExist(statErr) {
+		t.Fatalf("cache dir should be gone, stat err=%v", statErr)
+	}
+}
+
+// TestPathRemover_OffLimitsBoundary: ~/Documents-old must NOT be confused
+// with ~/Documents. The check must respect path-component boundaries —
+// a bare strings.HasPrefix would match both, which is the textbook
+// off-by-one in path policy code.
+func TestPathRemover_OffLimitsBoundary(t *testing.T) {
+	home := withFakeHome(t)
+	// Sibling of ~/Documents whose name starts with the same letters.
+	// This is a real-world case: people do rename their Documents folder
+	// to "Documents-old" when migrating Macs.
+	siblingDir := filepath.Join(home, "Documents-old")
+	if err := os.MkdirAll(siblingDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(siblingDir, "leftover.txt")
+	if err := os.WriteFile(target, []byte("ok to delete"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := (PathRemover{}).Remove(item.Item{Path: target}); err != nil {
+		t.Fatalf("~/Documents-old/* must NOT be off-limits, got %v", err)
+	}
+	if _, statErr := os.Stat(target); !os.IsNotExist(statErr) {
+		t.Fatalf("file should be gone, stat err=%v", statErr)
 	}
 }

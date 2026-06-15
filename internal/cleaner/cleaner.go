@@ -212,6 +212,69 @@ var SafeRoots = func() []string {
 // ErrUnsafePath is returned when a PathRemover is asked to delete outside SafeRoots.
 var ErrUnsafePath = errors.New("path is outside safe roots; refusing to delete")
 
+// OffLimits lists path prefixes that mistah will NEVER delete from,
+// regardless of what any detector reported. This is a second defensive
+// barrier on top of SafeRoots:
+//
+//   SafeRoots answers "is this path in a place we're allowed to touch?".
+//   OffLimits answers "even if we're allowed, is this user data we must
+//                      not touch?".
+//
+// Both must pass before PathRemover proceeds. A misbehaving detector that
+// reports ~/Documents/foo.txt is caught here, even though ~/Documents is
+// inside the user's home (i.e. inside SafeRoots).
+//
+// Resolved against the user's home directory at process start. Tests can
+// rebuild the slice with DefaultOffLimits(tempHome) when they need to
+// exercise the check against a fixture.
+var OffLimits = DefaultOffLimits(homeOrEmpty())
+
+// DefaultOffLimits returns the standard list of protected prefixes for a
+// given home directory. Exported for tests; production code uses the
+// pre-built OffLimits variable.
+//
+// Notes on the chosen prefixes:
+//   - ~/Documents, ~/Desktop, ~/Movies, ~/Music: top-level user data folders
+//     where no cache or trash should ever live. Blanket protection.
+//   - ~/Pictures: blocked at the root. Future detectors that want to clean
+//     specific Photos Library cache subpaths must be reviewed individually
+//     and may need to bypass this only for explicitly-whitelisted children.
+//   - ~/Library/Mobile Documents: iCloud Drive. Touching this can sync a
+//     deletion to every other Apple device the user owns. Hard no.
+//   - ~/Library/Keychains: passwords, secure notes, certificates.
+//   - ~/Library/Application Support/AddressBook and ~/Library/Calendars:
+//     contacts and calendars, irreplaceable user data.
+func DefaultOffLimits(home string) []string {
+	if home == "" {
+		return nil
+	}
+	return []string{
+		filepath.Join(home, "Documents"),
+		filepath.Join(home, "Desktop"),
+		filepath.Join(home, "Movies"),
+		filepath.Join(home, "Pictures"),
+		filepath.Join(home, "Music"),
+		filepath.Join(home, "Library", "Mobile Documents"),
+		filepath.Join(home, "Library", "Keychains"),
+		filepath.Join(home, "Library", "Application Support", "AddressBook"),
+		filepath.Join(home, "Library", "Calendars"),
+	}
+}
+
+// ErrOffLimits is returned when a PathRemover is asked to touch a path
+// inside an OffLimits prefix. Distinct from ErrUnsafePath so callers can
+// tell "we don't reach there" apart from "we refuse to touch user data".
+var ErrOffLimits = errors.New("path is off-limits; mistah refuses to delete user data here")
+
+// homeOrEmpty returns the user's home dir or "" if it can't be resolved.
+// Wrapped to keep the OffLimits init expression readable.
+func homeOrEmpty() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return home
+	}
+	return ""
+}
+
 // PathRemover deletes a directory or file with rm -rf semantics, but only if
 // the path is rooted in SafeRoots. Use this for cache directories.
 type PathRemover struct{}
@@ -230,6 +293,12 @@ func (PathRemover) Remove(it item.Item) error {
 	}
 	if !isUnderSafeRoot(abs) {
 		return fmt.Errorf("%w: %s", ErrUnsafePath, abs)
+	}
+	// Defense in depth: even paths inside SafeRoots may collide with user
+	// data (e.g. ~/Documents lives under the home dir, which is a SafeRoot).
+	// Reject those before any detector mistake reaches the filesystem.
+	if isOffLimits(abs) {
+		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
 	}
 	return os.RemoveAll(abs)
 }
@@ -260,6 +329,24 @@ func (PathRemover) previewPath(path string) string {
 // at a path-component boundary (so /home/foo doesn't match /homer).
 func isUnderSafeRoot(abs string) bool {
 	for _, root := range SafeRoots {
+		if abs == root {
+			return true
+		}
+		if strings.HasPrefix(abs, root+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// isOffLimits returns true iff abs is, or lives under, any OffLimits prefix.
+//
+// Boundary discipline matters here: ~/Documents-old must NOT match
+// ~/Documents. We require either equality or a separator right after the
+// prefix, never a bare prefix string match. Same algorithm as
+// isUnderSafeRoot — kept separate to avoid coupling the two policies.
+func isOffLimits(abs string) bool {
+	for _, root := range OffLimits {
 		if abs == root {
 			return true
 		}
