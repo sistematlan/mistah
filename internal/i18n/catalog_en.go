@@ -206,4 +206,6 @@ var english = map[string]string{
 	"wizard.confirm.level":       "Level",
 	"wizard.confirm.items":       "items",
 	"wizard.confirm.prompt":      "Proceed? [y/N] ",
+	"wizard.review.header":       "Now let's review the Downloads files one by one.",
+	"wizard.review.subtitle":     "These are your own files: confirm each one with y/N (v=view contents, q=quit).",
 }

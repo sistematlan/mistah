@@ -99,20 +99,69 @@ func Scan() (Inventory, error) {
 //
 //   Deep: Standard + orphans + downloads (smart, large-other excluded already).
 func PlanFor(level Level, inv Inventory) []item.Item {
+	safe, review := PlanForSplit(level, inv)
+	if len(review) == 0 {
+		return safe
+	}
+	out := make([]item.Item, 0, len(safe)+len(review))
+	out = append(out, safe...)
+	out = append(out, review...)
+	return out
+}
+
+// PlanForSplit returns the same items as PlanFor, but split in two buckets:
+//
+//   safe   — items the wizard may delete after the single up-front confirm.
+//            Caches (always), orphans (always), and downloads classified as
+//            RiskSafe (e.g. installers whose app is already installed).
+//
+//   review — downloads items classified as RiskAskBefore (project folders
+//            with node_modules, archives with sibling extracted folder,
+//            DB dumps, old videos, old archives). These contain or might
+//            contain user data, so the wizard asks per-item before removing
+//            them, even at Deep level.
+//
+// The split is empty for Light/Standard — those levels never touch downloads.
+//
+// Rationale: a single "yes" wiping out a forgotten project folder, a video
+// the user wanted to keep, or an old DB dump that turned out to be the only
+// backup is a support nightmare and a trust killer. Caches and orphans are
+// reproducible; user files in ~/Downloads are not.
+func PlanForSplit(level Level, inv Inventory) (safe []item.Item, review []item.Item) {
 	switch level {
 	case LevelLight:
-		return filterLight(inv.Caches)
+		return filterLight(inv.Caches), nil
 	case LevelStandard:
-		return inv.Caches // every cache, including Docker prune and JB old.
+		return inv.Caches, nil
 	case LevelDeep:
-		out := make([]item.Item, 0, len(inv.Caches)+len(inv.Orphans)+len(inv.Downloads))
-		out = append(out, inv.Caches...)
-		out = append(out, inv.Orphans...)
-		out = append(out, inv.Downloads...)
-		return out
+		safeDownloads, reviewDownloads := splitDownloadsByRisk(inv.Downloads)
+		safe = make([]item.Item, 0, len(inv.Caches)+len(inv.Orphans)+len(safeDownloads))
+		safe = append(safe, inv.Caches...)
+		safe = append(safe, inv.Orphans...)
+		safe = append(safe, safeDownloads...)
+		return safe, reviewDownloads
 	default:
-		return nil
+		return nil, nil
 	}
+}
+
+// splitDownloadsByRisk partitions downloads into auto-deletable and
+// must-confirm buckets based on the Risk field set by the downloads scanner.
+//
+// Anything not RiskSafe falls into review. We deliberately do NOT include
+// RiskDangerous handling here because the downloads scanner never emits
+// that level — if it ever does, treating it as "review" is the safer
+// fallback (the cleaner's per-item prompt will then enforce the type-name
+// confirmation on its own).
+func splitDownloadsByRisk(items []item.Item) (safe, review []item.Item) {
+	for _, it := range items {
+		if it.Risk == item.RiskSafe {
+			safe = append(safe, it)
+		} else {
+			review = append(review, it)
+		}
+	}
+	return safe, review
 }
 
 // filterLight keeps only items that are RiskSafe AND have a path.

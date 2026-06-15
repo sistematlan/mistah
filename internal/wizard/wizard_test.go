@@ -139,3 +139,64 @@ func TestLevel_String(t *testing.T) {
 		}
 	}
 }
+
+// TestPlanForSplit_Deep: caches+orphans+RiskSafe downloads go to "safe";
+// RiskAskBefore downloads go to "review" so the wizard can confirm per-item.
+//
+// This is the contract that prevents the wizard from silently deleting user
+// files in ~/Downloads after a single up-front confirmation.
+func TestPlanForSplit_Deep(t *testing.T) {
+	inv := fixtureInventory()
+	safe, review := PlanForSplit(LevelDeep, inv)
+
+	// safe = 4 caches + 2 orphans + 1 RiskSafe download (App.dmg) = 7
+	if len(safe) != 7 {
+		t.Fatalf("Deep safe bucket should have 7 items, got %d", len(safe))
+	}
+	// review = 1 RiskAskBefore download (old.sql)
+	if len(review) != 1 {
+		t.Fatalf("Deep review bucket should have 1 item, got %d", len(review))
+	}
+	if review[0].Name != "old.sql" {
+		t.Errorf("review bucket should contain old.sql, got %q", review[0].Name)
+	}
+
+	// Every item in the review bucket must be a download. If a non-download
+	// ever leaks here we'd be asking the user about caches/orphans, which
+	// breaks the wizard's "just works" promise for the safe bucket.
+	for _, it := range review {
+		if it.Category != item.CategoryDownload {
+			t.Errorf("review bucket leaked non-download: %s (cat=%s)", it.Name, it.Category)
+		}
+		if it.Risk == item.RiskSafe {
+			t.Errorf("review bucket should not include RiskSafe items: %s", it.Name)
+		}
+	}
+
+	// safe must NOT include any RiskAskBefore download — those need a prompt.
+	for _, it := range safe {
+		if it.Category == item.CategoryDownload && it.Risk != item.RiskSafe {
+			t.Errorf("safe bucket leaked non-safe download: %s (risk=%s)", it.Name, it.Risk)
+		}
+	}
+
+	// Conservation: safe + review must equal the flat PlanFor list.
+	if got, want := len(safe)+len(review), len(PlanFor(LevelDeep, inv)); got != want {
+		t.Errorf("safe+review = %d, PlanFor = %d (must match)", got, want)
+	}
+}
+
+// TestPlanForSplit_LightStandard: review bucket is always empty for the
+// non-Deep levels; they never touch Downloads.
+func TestPlanForSplit_LightStandard(t *testing.T) {
+	inv := fixtureInventory()
+	for _, lvl := range []Level{LevelLight, LevelStandard} {
+		safe, review := PlanForSplit(lvl, inv)
+		if len(review) != 0 {
+			t.Errorf("%s should have empty review bucket, got %d items", lvl, len(review))
+		}
+		if len(safe) != len(PlanFor(lvl, inv)) {
+			t.Errorf("%s safe bucket should equal PlanFor result", lvl)
+		}
+	}
+}

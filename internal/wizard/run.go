@@ -65,15 +65,41 @@ func Run(in io.Reader, out io.Writer) error {
 		return nil
 	}
 
-	// Execute. We use Yes mode so the cleaner does NOT ask per item — the
-	// user already confirmed once at the level granularity, asking again
-	// per-item would defeat the wizard's purpose.
-	cleaner.SimpleMode = true
-	c := cleaner.New(plan, cleaner.Yes, nil, out)
-	results := c.Run()
+	// Split into auto-deletable items (caches/orphans/safe downloads) and
+	// review items (downloads classified RiskAskBefore: project folders,
+	// extracted archives, DB dumps, old videos, old archives).
+	//
+	// The single up-front confirm authorises the auto-deletable bucket only.
+	// For each review item we ask again, individually, so the user can keep
+	// a forgotten project, an old recording, or a DB dump they actually need.
+	safeItems, reviewItems := PlanForSplit(level, inv)
 
-	// Final summary.
-	s := cleaner.Summarize(results)
+	allResults := make([]cleaner.Result, 0, len(plan))
+
+	if len(safeItems) > 0 {
+		cleaner.SimpleMode = true
+		c := cleaner.New(safeItems, cleaner.Yes, nil, out)
+		allResults = append(allResults, c.Run()...)
+	}
+
+	if len(reviewItems) > 0 {
+		// Banner so the user understands the prompts that follow are NOT a
+		// regression — they are the price of touching ~/Downloads safely.
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "  "+i18n.T("wizard.review.header"))
+		fmt.Fprintln(out, "  "+i18n.T("wizard.review.subtitle"))
+		fmt.Fprintln(out)
+
+		// Use simple phrasing in prompts (matches the rest of the wizard)
+		// but keep the per-item confirmation flow of `mistah clean`.
+		cleaner.SimpleMode = true
+		prompter := &cleaner.TerminalPrompter{In: in, Out: out}
+		c := cleaner.New(reviewItems, cleaner.Interactive, prompter, out)
+		allResults = append(allResults, c.Run()...)
+	}
+
+	// Final summary (covers both phases).
+	s := cleaner.Summarize(allResults)
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, i18n.T("cleaner.summary"), s.Removed, s.Skipped, s.Failed)
 	fmt.Fprintln(out)

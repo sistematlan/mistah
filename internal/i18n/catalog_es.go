@@ -192,4 +192,6 @@ var spanish = map[string]string{
 	"wizard.confirm.level":       "Nivel",
 	"wizard.confirm.items":       "ítems",
 	"wizard.confirm.prompt":      "¿Continuar? [s/N] ",
+	"wizard.review.header":       "Ahora revisemos uno por uno los archivos de Downloads.",
+	"wizard.review.subtitle":     "Son archivos tuyos: confirma cada uno con s/N (v=ver contenido, q=salir).",
 }
