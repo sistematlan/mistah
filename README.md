@@ -82,5 +82,5 @@ MIT. Ver [LICENSE](LICENSE).
 
 ## Créditos
 
-Construido por [@chrisherlan](https://github.com/chrisherlan) en Oaxaca, México,
+Construido por [@chrisherlan](https://github.com/chrisherlan) en México,
 bajo el paraguas de [sistematlan](https://sistematlan.com).
