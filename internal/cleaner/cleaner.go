@@ -69,6 +69,7 @@ type Remover interface {
 //   - Trash → TrashContentsRemover (wipes children, keeps ~/.Trash dir alive)
 //   - Crash reports → OldFilesRemover (only files older than the cutoff)
 //   - Time Machine snapshots → TMSnapshotsRemover (calls tmutil)
+//   - Xcode simulators → XcodeSimulatorRemover (calls xcrun simctl delete)
 //   - everything else with a non-empty Path → PathRemover
 type Resolver func(it item.Item) (Remover, error)
 
@@ -91,6 +92,9 @@ func DefaultResolver(it item.Item) (Remover, error) {
 	}
 	if it.Tool == "tm-snapshots" {
 		return TMSnapshotsRemover{}, nil
+	}
+	if it.Tool == "xcode-simulator" && it.Path != "" {
+		return XcodeSimulatorRemover{}, nil
 	}
 	if it.Path == "" {
 		return nil, fmt.Errorf("item %q has no Path and no specialized remover", it.Name)
@@ -625,6 +629,65 @@ func tmSnapshotDate(name string) string {
 		return ""
 	}
 	return strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
+}
+
+// XcodeSimulatorRemover deletes a single CoreSimulator device by
+// asking xcrun to do it. The detector reports one Item per stale
+// device with Path pointing at
+// ~/Library/Developer/CoreSimulator/Devices/<UDID>/, and we extract
+// the UDID from filepath.Base(Path).
+//
+// Why not just os.RemoveAll(Path)? `xcrun simctl delete <UDID>` also
+// updates Xcode's device index. Removing the directory by hand leaves
+// a phantom device in `simctl list` until the user runs `simctl
+// erase` or restarts. The shell call costs ~200ms but keeps Xcode
+// consistent.
+//
+// If `xcrun` fails (no Xcode installed, simctl in a bad state), we
+// fall back to a plain os.RemoveAll so the user still reclaims the
+// bytes. The phantom-index cost is acceptable when the alternative is
+// "cleaner did nothing".
+type XcodeSimulatorRemover struct{}
+
+func (XcodeSimulatorRemover) Describe(it item.Item) string {
+	return fmt.Sprintf("xcrun simctl delete %s", filepath.Base(it.Path))
+}
+
+func (XcodeSimulatorRemover) Remove(it item.Item) error {
+	if it.Path == "" {
+		return errors.New("empty path")
+	}
+	abs, err := filepath.Abs(it.Path)
+	if err != nil {
+		return err
+	}
+	if !isUnderSafeRoot(abs) {
+		return fmt.Errorf("%w: %s", ErrUnsafePath, abs)
+	}
+	if isOffLimits(abs) {
+		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
+	}
+
+	udid := filepath.Base(abs)
+	out, xerr := xcrunCommand("simctl", "delete", udid)
+	if xerr == nil {
+		return nil
+	}
+	// xcrun failed; fall back to os.RemoveAll so the user still
+	// gets the bytes back. Wrap both errors so the caller sees the
+	// original xcrun reason in the log.
+	if rmErr := os.RemoveAll(abs); rmErr != nil {
+		return fmt.Errorf("xcrun delete failed (%v: %s) and rm fallback failed: %w",
+			xerr, strings.TrimSpace(string(out)), rmErr)
+	}
+	return nil
+}
+
+// xcrunCommand is the test seam for XcodeSimulatorRemover. Same shape
+// as tmutilCommand: a swappable var so tests don't need to mess with
+// PATH or build fake binaries.
+var xcrunCommand = func(args ...string) ([]byte, error) {
+	return exec.Command("xcrun", args...).CombinedOutput()
 }
 
 // Summary aggregates Run results for the final report.

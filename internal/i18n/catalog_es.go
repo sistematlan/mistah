@@ -158,6 +158,10 @@ var spanish = map[string]string{
 	"device.ios-backup.detail.simple":   "Backup de %s; último respaldo hace %d días",
 	"device.ios-backup.detail.advanced": "MobileSync backup de %s, mtime hace %d días; revisa antes de borrar",
 
+	// ---- Dev (Xcode simulators viejos) ----
+	"dev.xcode-simulator.detail.simple":   "Simulador %s en runtime %s (ya no disponible)",
+	"dev.xcode-simulator.detail.advanced": "CoreSimulator device %s, runtime %s no disponible",
+
 	// ---- App caches (Spotify, Slack, Discord, Zoom, Teams, etc.) ----
 	// Single key with %s = app name. Avoids 60 keys for 30 apps × 2 langs.
 	"appcache.detail.simple":   "Caché de %s; la app la regenera al usarse",

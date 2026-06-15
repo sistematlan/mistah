@@ -613,3 +613,104 @@ com.apple.TimeMachine.2024-06-14-150000.local
 		t.Errorf("expected list + 2 delete attempts, got %d: %v", len(*calls), *calls)
 	}
 }
+
+// withMockXcrun replaces xcrunCommand so XcodeSimulatorRemover tests
+// don't need the real binary. Records args of every call.
+func withMockXcrun(t *testing.T, output []byte, err error) *[][]string {
+	t.Helper()
+	var calls [][]string
+	prev := xcrunCommand
+	xcrunCommand = func(args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{}, args...))
+		return output, err
+	}
+	t.Cleanup(func() { xcrunCommand = prev })
+	return &calls
+}
+
+// TestDefaultResolver_PicksXcodeSimulator: items tagged xcode-simulator
+// must resolve to XcodeSimulatorRemover. Without this, they'd fall
+// through to PathRemover, which works for the bytes but leaves a
+// phantom device in Xcode's index.
+func TestDefaultResolver_PicksXcodeSimulator(t *testing.T) {
+	r, err := DefaultResolver(item.Item{Tool: "xcode-simulator", Path: "/some/path"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.(XcodeSimulatorRemover); !ok {
+		t.Fatalf("expected XcodeSimulatorRemover, got %T", r)
+	}
+}
+
+// TestXcodeSimulatorRemover_CallsXcrun: happy path — xcrun returns 0,
+// we don't fall back to RemoveAll. Verify the UDID arg is the basename
+// of Path.
+func TestXcodeSimulatorRemover_CallsXcrun(t *testing.T) {
+	withFakeHome(t)
+	tmp := t.TempDir()
+	udid := "11111111-1111-1111-1111-111111111111"
+	dir := filepath.Join(tmp, udid)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	calls := withMockXcrun(t, []byte("OK"), nil)
+
+	r := XcodeSimulatorRemover{}
+	if err := r.Remove(item.Item{Tool: "xcode-simulator", Path: dir}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("expected 1 xcrun call, got %d: %v", len(*calls), *calls)
+	}
+	got := (*calls)[0]
+	if got[0] != "simctl" || got[1] != "delete" || got[2] != udid {
+		t.Errorf("xcrun args = %v, want [simctl delete %s]", got, udid)
+	}
+	// xcrun reported success → directory may or may not still exist
+	// (real xcrun would have removed it). We don't assert here.
+}
+
+// TestXcodeSimulatorRemover_FallbackOnXcrunError: when xcrun fails,
+// fall back to os.RemoveAll so the user still gets the bytes back.
+// The phantom-index cost is acceptable when the alternative is doing
+// nothing.
+func TestXcodeSimulatorRemover_FallbackOnXcrunError(t *testing.T) {
+	withFakeHome(t)
+	tmp := t.TempDir()
+	udid := "22222222-2222-2222-2222-222222222222"
+	dir := filepath.Join(tmp, udid)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "device.plist"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withMockXcrun(t, []byte("xcrun: error"), errors.New("simctl crashed"))
+
+	r := XcodeSimulatorRemover{}
+	if err := r.Remove(item.Item{Tool: "xcode-simulator", Path: dir}); err != nil {
+		t.Fatalf("expected fallback to succeed, got %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Errorf("dir should be gone after fallback, stat err=%v", err)
+	}
+}
+
+// TestXcodeSimulatorRemover_RespectsOffLimits: even with a valid UDID
+// shape, the remover refuses to touch a path under OffLimits. Defense
+// in depth on top of the detector's own constraints.
+func TestXcodeSimulatorRemover_RespectsOffLimits(t *testing.T) {
+	home := withFakeHome(t)
+	docs := filepath.Join(home, "Documents", "fake-udid")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// xcrun never gets called because OffLimits short-circuits first.
+	withMockXcrun(t, nil, nil)
+
+	r := XcodeSimulatorRemover{}
+	err := r.Remove(item.Item{Tool: "xcode-simulator", Path: docs})
+	if !errors.Is(err, ErrOffLimits) {
+		t.Fatalf("expected ErrOffLimits, got %v", err)
+	}
+}
