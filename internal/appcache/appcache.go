@@ -186,7 +186,21 @@ func Scan() ([]item.Item, error) {
 
 // ScanHome is Scan with an explicit home directory, for tests using
 // t.TempDir(). Production code uses Scan().
+//
+// Includes both the consumer-app caches in this file and the browser
+// caches from browsers.go. Callers who need only one bucket can use
+// ScanApps or ScanBrowsers directly.
 func ScanHome(home string) []item.Item {
+	items := ScanApps(home)
+	items = append(items, ScanBrowsers(home)...)
+	return items
+}
+
+// ScanApps reports only the consumer-app cache items (Spotify, Slack,
+// Discord, Notion, etc.). Split out from ScanHome so the wizard can
+// group apps and browsers as separate UI rows in PR 9 without having
+// to re-filter a merged slice.
+func ScanApps(home string) []item.Item {
 	var items []item.Item
 	for _, e := range entries {
 		path := filepath.Join(home, e.relPath)

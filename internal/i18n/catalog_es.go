@@ -66,14 +66,7 @@ var spanish = map[string]string{
 	"caches.node-gyp.detail.advanced": "headers nativos para compilar",
 	"caches.node-gyp.detail.simple":   "Archivos para compilar módulos nativos de Node.js",
 
-	// ---- Caches: browsers ----
-	"caches.chrome.name":            "Caché de Chrome",
-	"caches.chrome.detail.advanced": "caché del navegador",
-	"caches.chrome.detail.simple":   "Archivos temporales de Google Chrome",
-
-	"caches.firefox.name":            "Caché de Firefox",
-	"caches.firefox.detail.advanced": "caché del navegador",
-	"caches.firefox.detail.simple":   "Archivos temporales de Firefox",
+	// (Chrome and Firefox keys moved to internal/appcache/browsers.go in PR 4.)
 
 	// ---- Caches: cargo ----
 	"caches.cargo-cache.name":            "Caché de Cargo (registry)",
@@ -157,6 +150,10 @@ var spanish = map[string]string{
 	// Single key with %s = app name. Avoids 60 keys for 30 apps × 2 langs.
 	"appcache.detail.simple":   "Caché de %s; la app la regenera al usarse",
 	"appcache.detail.advanced": "caché de %s (regenerable on demand)",
+
+	// Browser-specific phrasing — "navegar" reads better than "usarse".
+	"appcache.browser.detail.simple":   "Caché de %s; el navegador la regenera al navegar",
+	"appcache.browser.detail.advanced": "caché HTTP/asset de %s (regenerable al navegar)",
 
 	// ---- Categories ----
 	"category.cache.simple":     "Archivos temporales de herramientas de desarrollo",

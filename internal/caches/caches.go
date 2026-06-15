@@ -44,8 +44,11 @@ func Scan() ([]item.Item, error) {
 		{"uv", "uv cache", "uv", ".cache/uv", "Python package cache"},
 		{"composer", "Composer cache", "composer", "Library/Caches/composer", "PHP packages"},
 		{"node-gyp", "node-gyp cache", "node-gyp", "Library/Caches/node-gyp", "native build headers"},
-		{"chrome", "Chrome cache", "chrome", "Library/Caches/Google/Chrome", "browser cache"},
-		{"firefox", "Firefox cache", "firefox", "Library/Caches/Mozilla", "browser cache"},
+		// Chrome and Firefox previously lived here under "browser cache".
+		// They moved to internal/appcache/browsers.go (CategorySystem) so
+		// they no longer count as "dev tooling" — a non-dev user with
+		// Chrome installed shouldn't trip the dev-tools detector. Adding
+		// either browser back here would re-introduce that bug.
 		{"xcode-derived", "Xcode DerivedData", "xcode", "Library/Developer/Xcode/DerivedData", "build artifacts"},
 		{"xcode-archives", "Xcode Archives", "xcode", "Library/Developer/Xcode/Archives", "old release archives"},
 		{"xcode-ios-support", "iOS DeviceSupport", "xcode", "Library/Developer/Xcode/iOS DeviceSupport", "symbol files for old iOS versions"},

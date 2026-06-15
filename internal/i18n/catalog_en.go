@@ -80,14 +80,7 @@ var english = map[string]string{
 	"caches.node-gyp.detail.advanced": "native build headers",
 	"caches.node-gyp.detail.simple":   "Files used to compile native Node.js modules",
 
-	// ---- Caches: browsers ----
-	"caches.chrome.name":            "Chrome cache",
-	"caches.chrome.detail.advanced": "browser cache",
-	"caches.chrome.detail.simple":   "Temporary files of Google Chrome",
-
-	"caches.firefox.name":            "Firefox cache",
-	"caches.firefox.detail.advanced": "browser cache",
-	"caches.firefox.detail.simple":   "Temporary files of Firefox",
+	// (Chrome and Firefox keys moved to internal/appcache/browsers.go in PR 4.)
 
 	// ---- Caches: cargo ----
 	"caches.cargo-cache.name":            "Cargo registry cache",
@@ -171,6 +164,10 @@ var english = map[string]string{
 	// Single key with %s = app name. Avoids 60 keys for 30 apps × 2 langs.
 	"appcache.detail.simple":   "Cache for %s; the app rebuilds it on use",
 	"appcache.detail.advanced": "%s cache (regenerable on demand)",
+
+	// Browser-specific phrasing — "browsing" reads better than "use".
+	"appcache.browser.detail.simple":   "%s cache; the browser rebuilds it as you browse",
+	"appcache.browser.detail.advanced": "%s HTTP/asset cache (regenerable on browse)",
 
 	// ---- Categories (subcommand groupings) ----
 	"category.cache.simple":   "Temporary files of dev tools",
