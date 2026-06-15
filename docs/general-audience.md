@@ -560,3 +560,170 @@ acumulan en `main` hasta que la fase esté completa.
 
 Cada PR debe pasar `go test ./...` y `go vet ./...` verde antes de
 merge. El CI ya está configurado para correr eso en cada push a `main`.
+
+---
+
+# Fase 2 — Consistencia y mensajería
+
+> Estado: **scope aprobado**. Listo para implementar.
+> Última edición: 2026-06-15.
+
+Fase 1 dejó dos frentes abiertos. Fase 2 los cierra. Es deliberadamente
+pequeña: dos entregas, no diez. No agrega categorías nuevas ni reabre
+las decisiones de diseño firmadas en Fase 1.
+
+## Frente A — Cablear los detectores a `clean` y `scan` (deuda de Fase 1)
+
+### El problema
+
+En Fase 1 cableamos los 30 detectores al **wizard** (`mistah` sin args),
+pero NO al comando granular `mistah clean` ni al informativo `mistah scan`.
+Hoy:
+
+- `mistah clean` solo conoce caches dev, orphans y downloads (~18 detectores).
+- `mistah scan` solo reporta caches dev y orphans.
+- El wizard conoce los 30 (system, device, appcache, dev incluidos).
+
+Esto es una inconsistencia de producto: un power user que prefiere el
+control granular de `clean` no ve su papelera, sus backups de iPhone, ni
+sus snapshots de Time Machine. La capacidad existe pero está escondida
+detrás del wizard.
+
+### La solución
+
+Centralizar la recolección de inventario en un solo lugar que tanto el
+wizard como `clean`/`scan` consuman. Hoy `wizard.Scan()` ya orquesta los
+6 detectores; el problema es que vive en el paquete `wizard` y los cmd
+no deberían importar `wizard` (sería raro que `clean` dependa del wizard).
+
+Opción elegida: **mover la orquestación a un paquete neutral**
+`internal/inventory` que ni wizard ni cmd "posean". Ambos lo consumen.
+
+```
+internal/inventory/inventory.go
+  - type Inventory struct { Caches, Orphans, Downloads, System, Device, DevAdvanced }
+  - func Scan() (Inventory, error)   // mueve aquí wizard.Scan()
+  - func (Inventory) All() []item.Item  // flatten para clean/scan
+```
+
+`wizard.Inventory` se vuelve un alias o se reexporta desde `inventory`
+para no romper los tests del wizard. La lógica de `PlanFor`/`PlanForSplit`
+se queda en `wizard` (es UX del wizard, no del inventario).
+
+### Cambios en cmd
+
+- `mistah scan`: agrupa el reporte por categoría (Sistema / Dispositivos /
+  Apps / Dev) en vez de solo "Caches dev" y "Huérfanos". Sigue siendo
+  read-only.
+- `mistah clean`: nuevas flags para incluir los buckets nuevos, por
+  defecto conservador (solo lo RiskSafe sin prompt; lo RiskAskBefore
+  siempre pregunta por ítem, como ya hace).
+
+  ```
+  mistah clean                      # caches dev (comportamiento actual, sin cambios)
+  mistah clean --include-system     # + papelera, app/browser caches, snapshots, logs…
+  mistah clean --include-device     # + backups iOS, .ipsw
+  mistah clean --all                # todo, equivalente al Deep del wizard
+  ```
+
+  `--include-orphans` y `--include-downloads` ya existen; se mantienen.
+
+### Riesgo
+
+Bajo. No hay detectores nuevos; solo se expone lo ya testeado a través de
+otra puerta. El `OffLimits` y el split por Risk del cleaner siguen
+protegiendo igual. El único cuidado es no cambiar el comportamiento por
+defecto de `mistah clean` (debe seguir limpiando solo caches dev sin
+flags, para no sorprender a quien ya lo usa en scripts).
+
+### PRs del Frente A
+
+1. **PR A1 — Paquete `internal/inventory`:** mover `wizard.Scan()` y el
+   tipo `Inventory` allí. `wizard` reexporta para compatibilidad. Tests
+   de que el inventario agrega todos los buckets.
+2. **PR A2 — `scan` agrupado:** reescribir `cmd/scan.go` para reportar
+   por categoría usando `inventory.Scan()`.
+3. **PR A3 — `clean` con flags nuevas:** `--include-system`,
+   `--include-device`, `--all`. Default sin cambios. Actualizar `--help`
+   e i18n.
+
+## Frente B — iMessage attachments
+
+### El problema
+
+`~/Library/Messages/Attachments/` guarda cada foto, video, audio y archivo
+que pasó por iMessage. En Macs con iMessage intenso puede ser 10-40 GB.
+Pero es data sensible: borrar un adjunto rompe su preview en el chat (el
+texto queda, el adjunto muestra un ícono roto).
+
+### La solución — conservadora
+
+NO borramos por chat ni intentamos parsear `chat.db` (la base SQLite de
+Messages). Eso es frágil y peligroso. En su lugar:
+
+- Detectar adjuntos **por antigüedad de mtime**. Solo adjuntos con más de
+  N meses (propuesta: 6 meses, configurable) se consideran candidatos.
+- `RiskAskBefore` **estricto**. NUNCA cae en bucket auto del wizard;
+  siempre fase review per-item, igual que iOS backups.
+- Reportar como **un solo Item agregado** con el total de bytes de
+  adjuntos viejos y el conteo, NO un item por archivo (serían miles).
+- El remover borra solo los archivos > N meses dentro de Attachments,
+  reusando el patrón de `OldFilesRemover` que ya existe (pero sin filtro
+  de extensión — aquí cualquier archivo viejo cuenta).
+
+### Detalle técnico
+
+| Campo | Valor |
+|---|---|
+| Paquete | `internal/system/messages.go` (junto a Mail, mismo dominio) |
+| Path | `~/Library/Messages/Attachments/` |
+| Estructura | árbol de subdirs hash (`ab/cd/<guid>/archivo`); hay que walk recursivo |
+| Cómo medir | sumar bytes de archivos con mtime > 6 meses |
+| Cómo borrar | `OldFilesRemover` con MaxAgeDays=180 y Extensions vacío (= cualquier ext) |
+| Risk | `RiskAskBefore` SIEMPRE |
+| Categoría | `CategorySystem` |
+| Edge cases | permisos (Messages está en un contenedor con TCC; lectura puede fallar sin Full Disk Access → skip silencioso con log); árbol vacío → no item |
+
+### Cambio necesario en `OldFilesRemover`
+
+Hoy `OldFilesRemover` exige `Extensions` no vacío y NO recursa. Para
+iMessage necesitamos:
+- `Extensions` vacío = "cualquier archivo" (matchea todo).
+- Recursión dentro del árbol de hash de Attachments.
+
+Decisión: agregar un campo `Recursive bool` al `OldFilesRemover` y tratar
+`len(Extensions) == 0` como "match all". Cambio retrocompatible: los usos
+actuales (crash reports) pasan Extensions no vacío y Recursive=false, así
+que su comportamiento no cambia. Tests existentes deben seguir verdes.
+
+### Riesgo
+
+Medio. Mitigado por: RiskAskBefore estricto (siempre prompt), filtro de
+6 meses (no toca conversaciones recientes), agregación en un solo item
+(el usuario decide una vez, informado del total y conteo), y el hecho de
+que el texto del chat NUNCA se toca (vive en chat.db, que no tocamos).
+
+El peor caso realista: el usuario borra adjuntos viejos y luego scrollea
+a una conversación de hace un año y ve íconos rotos donde había fotos.
+El Detail del item debe advertir esto explícitamente.
+
+### PRs del Frente B
+
+4. **PR B1 — `OldFilesRemover` extendido:** campo `Recursive`, semántica
+   `Extensions` vacío = match all. Tests de retrocompatibilidad (crash
+   reports siguen igual) + tests de los modos nuevos.
+5. **PR B2 — Detector iMessage:** `internal/system/messages.go`,
+   `scanMessagesAttachments(home)`, filtro 6 meses, agregación. i18n.
+   Cablear a `system.ScanHome`. Tests con árbol de attachments sintético.
+
+## Versión del release
+
+`v0.3.0`. El Frente A es expansión de comportamiento (flags nuevas en
+clean, scan reagrupado); el Frente B agrega un detector. Minor bump.
+
+## Lo que sigue fuera de scope (Fase 3+)
+
+- Duplicados por hash (fotos, PDFs, videos).
+- Apps no usadas (heurística de Spotlight frágil).
+- Photos Library cache derivado.
+- Apple notarization (no es feature de limpieza; es trabajo de release).
