@@ -164,6 +164,9 @@ var english = map[string]string{
 	"system.snapshots.detail.simple":   "%d Time Machine local snapshots; macOS rebuilds them if needed",
 	"system.snapshots.detail.advanced": "%d TM local snapshots; tmutil deletelocalsnapshots per snapshot",
 
+	"system.imessage.detail.simple":   "%d iMessage attachments older than %d months; chats are kept",
+	"system.imessage.detail.advanced": "%d files in Messages/Attachments with mtime > %d months (chat.db untouched)",
+
 	// ---- Device (.ipsw firmware caches) ----
 	"device.ipsw.name":            "iOS update",
 	"device.ipsw.detail.simple":   "iOS installer for %s (version %s); Apple re-serves on demand",

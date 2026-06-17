@@ -769,6 +769,30 @@ func TestDefaultResolver_PicksXcodeSimulator(t *testing.T) {
 	}
 }
 
+// TestDefaultResolver_PicksMessages: ios-messages must resolve to an
+// OldFilesRemover configured recursive + match-all + 180-day cutoff.
+// Without this the attachments item would fall through to PathRemover
+// and wipe the entire Attachments tree (including recent conversations).
+func TestDefaultResolver_PicksMessages(t *testing.T) {
+	r, err := DefaultResolver(item.Item{Tool: "ios-messages", Path: "/some/path"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, ok := r.(OldFilesRemover)
+	if !ok {
+		t.Fatalf("expected OldFilesRemover, got %T", r)
+	}
+	if old.MaxAgeDays != 180 {
+		t.Errorf("MaxAgeDays = %d, want 180", old.MaxAgeDays)
+	}
+	if !old.Recursive {
+		t.Error("messages remover must be Recursive (hashed attachment tree)")
+	}
+	if len(old.Extensions) != 0 {
+		t.Errorf("messages remover must match all extensions, got %v", old.Extensions)
+	}
+}
+
 // TestXcodeSimulatorRemover_CallsXcrun: happy path — xcrun returns 0,
 // we don't fall back to RemoveAll. Verify the UDID arg is the basename
 // of Path.

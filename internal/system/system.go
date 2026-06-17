@@ -52,6 +52,7 @@ func ScanHome(home string) []item.Item {
 	items = append(items, scanLogs(home)...)
 	items = append(items, scanCrashReports(home)...)
 	items = append(items, scanSnapshots()...)
+	items = append(items, scanMessagesAttachments(home)...)
 	return items
 }
 

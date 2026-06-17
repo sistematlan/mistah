@@ -70,6 +70,7 @@ type Remover interface {
 //   - Crash reports → OldFilesRemover (only files older than the cutoff)
 //   - Time Machine snapshots → TMSnapshotsRemover (calls tmutil)
 //   - Xcode simulators → XcodeSimulatorRemover (calls xcrun simctl delete)
+//   - iMessage attachments → OldFilesRemover (recursive, age-filtered)
 //   - everything else with a non-empty Path → PathRemover
 type Resolver func(it item.Item) (Remover, error)
 
@@ -95,6 +96,16 @@ func DefaultResolver(it item.Item) (Remover, error) {
 	}
 	if it.Tool == "xcode-simulator" && it.Path != "" {
 		return XcodeSimulatorRemover{}, nil
+	}
+	if it.Tool == "ios-messages" && it.Path != "" {
+		// 180-day cutoff matches scanMessagesAttachments' detection
+		// window. Recursive (the Attachments tree is hashed) and
+		// match-all (attachments have arbitrary extensions). Only the
+		// attachment files are removed; chat.db is never touched.
+		return OldFilesRemover{
+			MaxAgeDays: 180,
+			Recursive:  true,
+		}, nil
 	}
 	if it.Path == "" {
 		return nil, fmt.Errorf("item %q has no Path and no specialized remover", it.Name)
