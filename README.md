@@ -26,9 +26,11 @@ shell POSIX sin sorpresas.
 
 ```sh
 mistah                          # wizard guiado con tres niveles
-mistah scan                     # escaneo informativo, no borra nada
-mistah clean --dry-run          # ver qué se borraría
+mistah scan                     # escaneo informativo por categoría, no borra nada
+mistah clean --dry-run          # ver qué se borraría (solo caches dev)
 mistah clean                    # interactivo, ítem por ítem
+mistah clean --include-system   # también papelera, cachés de apps, snapshots, logs
+mistah clean --all              # todas las categorías (= wizard Profundo)
 mistah --help                   # ayuda completa
 mistah --advanced --help        # mostrar todos los comandos avanzados
 ```
@@ -56,6 +58,7 @@ ajusta lo que muestra. Un usuario sin entorno de dev nunca ve "Docker prune".
 | 🌐 Cachés de navegadores | Chrome, Safari, Firefox, Brave, Edge |
 | ⏱️ Snapshots de Time Machine | snapshots locales que macOS retiene |
 | 📨 Adjuntos de Mail | descargas que Mail.app vuelve a bajar |
+| 💬 Adjuntos de iMessage | fotos/videos de chats >6 meses (los chats no se borran) |
 | 🖼️ Miniaturas de QuickLook | cache que macOS regenera |
 | 📦 Actualizaciones iOS (.ipsw) | firmware que Apple re-sirve |
 | 📋 Logs y crash reports | logs viejos + reportes >30 días |
@@ -94,7 +97,6 @@ Requiere Go 1.26+.
 Ver [BACKLOG.md](BACKLOG.md). En curso:
 
 - `mistah report --json` para integración con scripts
-- Cablear los detectores de sistema/dispositivo al comando `clean` granular
 - Detección de duplicados (fotos, PDFs) — evaluando
 - Apple notarization para que Gatekeeper no se queje al primer arranque
 - Soporte Linux (largo plazo)
