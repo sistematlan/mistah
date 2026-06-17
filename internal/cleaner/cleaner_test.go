@@ -494,6 +494,133 @@ func TestOldFilesRemover_RespectsOffLimits(t *testing.T) {
 	}
 }
 
+// TestOldFilesRemover_EmptyExtensionsMatchesAll: with no Extensions,
+// every old file is eligible regardless of name/extension. This is the
+// iMessage-attachments mode where extensions are arbitrary.
+func TestOldFilesRemover_EmptyExtensionsMatchesAll(t *testing.T) {
+	withFakeHome(t)
+	tmp := t.TempDir()
+	now := time.Now()
+	// Mixed extensions, all old.
+	for _, name := range []string{"photo.heic", "clip.mov", "blob", "doc.pdf"} {
+		p := filepath.Join(tmp, name)
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(p, now.AddDate(0, 0, -200), now.AddDate(0, 0, -200)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// One recent file that must survive the age filter.
+	recent := filepath.Join(tmp, "recent.heic")
+	if err := os.WriteFile(recent, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(recent, now.AddDate(0, 0, -1), now.AddDate(0, 0, -1)); err != nil {
+		t.Fatal(err)
+	}
+
+	r := OldFilesRemover{MaxAgeDays: 180} // no Extensions = match all
+	if err := r.Remove(item.Item{Path: tmp}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+
+	// All four old files gone regardless of extension.
+	for _, name := range []string{"photo.heic", "clip.mov", "blob", "doc.pdf"} {
+		if _, err := os.Stat(filepath.Join(tmp, name)); !os.IsNotExist(err) {
+			t.Errorf("%s should be deleted (old, match-all), stat err=%v", name, err)
+		}
+	}
+	// Recent file survives.
+	if _, err := os.Stat(recent); err != nil {
+		t.Errorf("recent.heic should survive the age filter, got %v", err)
+	}
+}
+
+// TestOldFilesRemover_Recursive: with Recursive=true, files deep in a
+// hashed subdirectory tree (the iMessage Attachments layout) are deleted
+// while the directory structure and the root survive.
+func TestOldFilesRemover_Recursive(t *testing.T) {
+	withFakeHome(t)
+	root := t.TempDir()
+	now := time.Now()
+
+	// Build a 2-level hashed tree like Messages/Attachments/ab/cd/<guid>/file.
+	deep := filepath.Join(root, "ab", "cd", "GUID-1234")
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldFile := filepath.Join(deep, "IMG_0001.heic")
+	if err := os.WriteFile(oldFile, []byte("photo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(oldFile, now.AddDate(0, 0, -300), now.AddDate(0, 0, -300)); err != nil {
+		t.Fatal(err)
+	}
+
+	// A recent file in another branch must survive.
+	deep2 := filepath.Join(root, "ef", "01", "GUID-5678")
+	if err := os.MkdirAll(deep2, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	recentFile := filepath.Join(deep2, "IMG_9999.heic")
+	if err := os.WriteFile(recentFile, []byte("photo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(recentFile, now.AddDate(0, 0, -5), now.AddDate(0, 0, -5)); err != nil {
+		t.Fatal(err)
+	}
+
+	r := OldFilesRemover{MaxAgeDays: 180, Recursive: true} // match all, recurse
+	if err := r.Remove(item.Item{Path: root}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+
+	if _, err := os.Stat(oldFile); !os.IsNotExist(err) {
+		t.Errorf("old nested file should be deleted, stat err=%v", err)
+	}
+	if _, err := os.Stat(recentFile); err != nil {
+		t.Errorf("recent nested file should survive, got %v", err)
+	}
+	// Directory structure must remain — we only delete files.
+	if _, err := os.Stat(deep); err != nil {
+		t.Errorf("nested directory should survive (we only delete files): %v", err)
+	}
+	if _, err := os.Stat(root); err != nil {
+		t.Errorf("root must survive: %v", err)
+	}
+}
+
+// TestOldFilesRemover_NonRecursiveIgnoresSubdirs: the default
+// (Recursive=false) must NOT descend into subdirectories. Guards the
+// crash-reports behaviour: a subdir under DiagnosticReports is left
+// alone.
+func TestOldFilesRemover_NonRecursiveIgnoresSubdirs(t *testing.T) {
+	withFakeHome(t)
+	root := t.TempDir()
+	now := time.Now()
+
+	sub := filepath.Join(root, "subdir")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(sub, "old.crash")
+	if err := os.WriteFile(nested, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(nested, now.AddDate(0, 0, -90), now.AddDate(0, 0, -90)); err != nil {
+		t.Fatal(err)
+	}
+
+	r := OldFilesRemover{MaxAgeDays: 30, Extensions: []string{".crash"}} // Recursive defaults false
+	if err := r.Remove(item.Item{Path: root}); err != nil {
+		t.Fatalf("Remove failed: %v", err)
+	}
+	if _, err := os.Stat(nested); err != nil {
+		t.Errorf("non-recursive remover must NOT touch nested files, got %v", err)
+	}
+}
+
 // withMockTmutil replaces the package-level tmutilCommand with a fake
 // that records args and returns canned output. The dispatcher checks
 // args[0] so a single mock can serve list and delete in the same test.

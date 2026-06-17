@@ -457,23 +457,36 @@ func (TrashContentsRemover) Remove(it item.Item) error {
 	return firstErr
 }
 
-// OldFilesRemover deletes files inside a directory that are both older
-// than MaxAgeDays AND match one of the Extensions. The directory itself
-// stays in place; only matching files are removed (no recursion).
+// OldFilesRemover deletes files inside a directory that are older than
+// MaxAgeDays and (optionally) match one of Extensions. The directory
+// itself always stays in place; only matching files are removed.
 //
-// This is the right shape for crash reports: we want to free old .crash
-// files without wiping a recent debugging session, and we don't want a
-// stray .DS_Store next to the reports to ever be deleted.
+// Two configurable behaviours:
 //
-// MaxAgeDays must be > 0; a value of 0 would be interpreted as "delete
-// everything created today" which is dangerous and almost never what
-// the caller meant. Extensions match case-insensitively.
+//	Extensions  When non-empty, only files whose name ends in one of
+//	            these (case-insensitive) are eligible. When EMPTY, every
+//	            file matches — used for opaque blobs like iMessage
+//	            attachments where the extension is irrelevant.
+//	Recursive   When false, only immediate children are considered
+//	            (crash reports live flat). When true, the whole subtree
+//	            is walked — iMessage attachments live in a hashed tree
+//	            of subdirectories.
+//
+// The defaults (Extensions set, Recursive false) preserve the original
+// crash-reports behaviour, so existing callers don't change.
+//
+// MaxAgeDays must be > 0; a value of 0 would mean "delete everything
+// created today", which is dangerous and almost never intended.
 //
 // Per-file errors are tolerated: a permission-denied on one file doesn't
-// stop the rest. The first error seen is returned at the end.
+// stop the rest. The first error seen is returned at the end. When
+// Recursive is true, directories left empty after their files are
+// removed are NOT pruned — we only delete files, never directories, so
+// the tree structure (and the root) survives.
 type OldFilesRemover struct {
 	MaxAgeDays int
-	Extensions []string // case-insensitive, must include the leading dot
+	Extensions []string // case-insensitive w/ leading dot; empty = match all
+	Recursive  bool
 }
 
 func (r OldFilesRemover) Describe(it item.Item) string {
@@ -498,11 +511,21 @@ func (r OldFilesRemover) Remove(it item.Item) error {
 		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
 	}
 
-	entries, err := os.ReadDir(abs)
+	cutoff := time.Now().Add(-time.Duration(r.MaxAgeDays) * 24 * time.Hour)
+
+	if r.Recursive {
+		return r.removeTree(abs, cutoff)
+	}
+	return r.removeFlat(abs, cutoff)
+}
+
+// removeFlat handles immediate children only. This is the crash-reports
+// path and keeps the original, well-tested behaviour intact.
+func (r OldFilesRemover) removeFlat(dir string, cutoff time.Time) error {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
-	cutoff := time.Now().Add(-time.Duration(r.MaxAgeDays) * 24 * time.Hour)
 	var firstErr error
 	for _, e := range entries {
 		if e.IsDir() {
@@ -518,7 +541,7 @@ func (r OldFilesRemover) Remove(it item.Item) error {
 		if info.ModTime().After(cutoff) {
 			continue // newer than cutoff: keep
 		}
-		full := filepath.Join(abs, e.Name())
+		full := filepath.Join(dir, e.Name())
 		if rmErr := os.Remove(full); rmErr != nil && firstErr == nil {
 			firstErr = rmErr
 		}
@@ -526,9 +549,56 @@ func (r OldFilesRemover) Remove(it item.Item) error {
 	return firstErr
 }
 
-// matchesExt is case-insensitive suffix matching against r.Extensions.
-// Centralised so the regression test can call it directly.
+// removeTree walks the whole subtree, deleting eligible files. Only
+// files are removed; directories (including the root and now-empty
+// intermediates) are left in place. This is the iMessage path: the
+// Attachments tree has a hashed directory layout that Messages.app
+// expects to exist.
+//
+// filepath.WalkDir tolerates per-entry errors: when WalkDir hands us an
+// error for a node we record it and skip that node rather than aborting
+// the walk, so one unreadable subdirectory doesn't strand the rest.
+func (r OldFilesRemover) removeTree(root string, cutoff time.Time) error {
+	var firstErr error
+	walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			return nil // skip this node, keep walking
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !r.matchesExt(d.Name()) {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		if info.ModTime().After(cutoff) {
+			return nil
+		}
+		if rmErr := os.Remove(path); rmErr != nil && firstErr == nil {
+			firstErr = rmErr
+		}
+		return nil
+	})
+	if walkErr != nil && firstErr == nil {
+		firstErr = walkErr
+	}
+	return firstErr
+}
+
+// matchesExt reports whether name is eligible. An empty Extensions list
+// means "match everything" — the iMessage case, where attachments have
+// arbitrary or no extensions. Otherwise it's case-insensitive suffix
+// matching. Centralised so the regression test can call it directly.
 func (r OldFilesRemover) matchesExt(name string) bool {
+	if len(r.Extensions) == 0 {
+		return true
+	}
 	lower := strings.ToLower(name)
 	for _, ext := range r.Extensions {
 		if strings.HasSuffix(lower, strings.ToLower(ext)) {
