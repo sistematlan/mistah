@@ -1,11 +1,23 @@
+// Package disk provides disk-usage primitives shared by every detector:
+// total/used/free space for a mount point, and recursive directory sizing.
+//
+// Usage() is platform-specific (implemented in disk_unix.go and
+// disk_windows.go via build tags) because there is no portable syscall
+// for "free space on this volume" across darwin/linux/windows.
+//
+// DirSize() is intentionally NOT platform-specific: it used to shell out
+// to `du -sk`, which doesn't exist on Windows and added subprocess
+// latency on macOS (see BACKLOG.md's "deuda técnica conocida"). Walking
+// the tree with filepath.WalkDir and summing file sizes gives the same
+// answer, works identically on every OS, and is faster for the
+// repeated small-directory calls detectors make (JetBrains version
+// listing, per-app caches, etc.).
 package disk
 
 import (
 	"fmt"
-	"os/exec"
-	"strconv"
-	"strings"
-	"syscall"
+	"os"
+	"path/filepath"
 )
 
 type Info struct {
@@ -18,42 +30,43 @@ type Info struct {
 	FreeStr  string
 }
 
-func Usage(path string) (Info, error) {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(path, &stat); err != nil {
-		return Info{}, err
-	}
-
-	total := stat.Blocks * uint64(stat.Bsize)
-	free := stat.Bavail * uint64(stat.Bsize)
-	used := total - free
-
-	return Info{
-		Total:    total,
-		Used:     used,
-		Free:     free,
-		UsedPct:  float64(used) / float64(total) * 100,
-		TotalStr: FormatBytes(int64(total)),
-		UsedStr:  FormatBytes(int64(used)),
-		FreeStr:  FormatBytes(int64(free)),
-	}, nil
-}
-
-// DirSize returns the size of a directory in bytes using du.
+// DirSize returns the size of a directory (or file) in bytes by walking
+// the tree and summing regular file sizes. Symlinks are not followed
+// (WalkDir never descends into them), which matches the old `du`
+// behaviour of not double-counting or chasing cycles.
+//
+// Per-entry errors (permission denied, race with a concurrent delete)
+// are tolerated: the walk continues and the entry contributes 0 bytes,
+// mirroring the old "du swallows errors" contract every caller already
+// depends on.
 func DirSize(path string) (int64, error) {
-	out, err := exec.Command("du", "-sk", path).Output()
+	info, err := os.Lstat(path)
 	if err != nil {
 		return 0, nil
 	}
-	parts := strings.Fields(string(out))
-	if len(parts) == 0 {
-		return 0, nil
+	if !info.IsDir() {
+		return info.Size(), nil
 	}
-	kb, err := strconv.ParseInt(parts[0], 10, 64)
+
+	var total int64
+	err = filepath.WalkDir(path, func(p string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil // skip unreadable entries, keep walking
+		}
+		if d.IsDir() {
+			return nil
+		}
+		fi, statErr := d.Info()
+		if statErr != nil {
+			return nil
+		}
+		total += fi.Size()
+		return nil
+	})
 	if err != nil {
-		return 0, nil
+		return total, nil
 	}
-	return kb * 1024, nil
+	return total, nil
 }
 
 func FormatBytes(b int64) string {

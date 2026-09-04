@@ -12,12 +12,13 @@
 //   - Go maps are zero-cost and trivially testable.
 //
 // Modes:
-//   The same logical concept may have two phrasings:
 //
-//     "caches.npm.detail.advanced" → "downloaded packages cache (~/.npm/_cacache)"
-//     "caches.npm.detail.simple"   → "Paquetes de Node.js descargados"
+//	The same logical concept may have two phrasings:
 //
-//   Callers pick which to use via Detail(key, simple bool).
+//	  "caches.npm.detail.advanced" → "downloaded packages cache (~/.npm/_cacache)"
+//	  "caches.npm.detail.simple"   → "Paquetes de Node.js descargados"
+//
+//	Callers pick which to use via Detail(key, simple bool).
 package i18n
 
 import (
@@ -37,9 +38,9 @@ const (
 
 // state holds the resolved language and overrides for tests.
 var (
-	mu        sync.RWMutex
-	current   Lang
-	resolved  bool
+	mu       sync.RWMutex
+	current  Lang
+	resolved bool
 )
 
 // Set forces the active language. Empty string falls back to autodetect.

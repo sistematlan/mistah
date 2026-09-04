@@ -10,19 +10,19 @@
 //
 // Levels (rebalanced for a general audience in Phase 1):
 //
-//   Light    — Reproducible caches that ANY Mac accumulates: app caches
-//              (Spotify, Slack, browsers…), QuickLook thumbnails, Mail
-//              downloads, the Trash, .ipsw firmware, and the safe dev
-//              caches (npm, brew, pip). All RiskSafe.
+//	Light    — Reproducible caches that ANY Mac accumulates: app caches
+//	           (Spotify, Slack, browsers…), QuickLook thumbnails, Mail
+//	           downloads, the Trash, .ipsw firmware, and the safe dev
+//	           caches (npm, brew, pip). All RiskSafe.
 //
-//   Standard — Light + the heavier reproducible stuff: Docker prune,
-//              JetBrains old versions, Xcode build artifacts, Time
-//              Machine local snapshots, logs and crash reports.
+//	Standard — Light + the heavier reproducible stuff: Docker prune,
+//	           JetBrains old versions, Xcode build artifacts, Time
+//	           Machine local snapshots, logs and crash reports.
 //
-//   Deep     — Standard + data that MIGHT matter to the user: orphan
-//              data, Downloads candidates, iOS device backups, stale
-//              Xcode simulators. Everything RiskAskBefore in here goes
-//              through the per-item review phase.
+//	Deep     — Standard + data that MIGHT matter to the user: orphan
+//	           data, Downloads candidates, iOS device backups, stale
+//	           Xcode simulators. Everything RiskAskBefore in here goes
+//	           through the per-item review phase.
 //
 // The level filtering happens here, not in the cleaner, so the cleaner
 // stays a pure executor and other entry points (clean cmd) keep their
@@ -31,7 +31,6 @@ package wizard
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/sistematlan/mistah/internal/inventory"
 	"github.com/sistematlan/mistah/internal/item"
@@ -230,25 +229,19 @@ func ComputeTotals(inv Inventory) LevelTotals {
 // We check cheap stat()s, not the inventory, so the banner decision is
 // independent of whether those caches happened to have reclaimable bytes
 // this run (a dev with an already-clean npm cache is still a dev).
+//
+// The marker list is platform-specific (see devPresenceMarkers in
+// wizard_darwin.go / wizard_windows.go) because dev tools cache in
+// different conventions per OS; the detection loop itself is shared.
 func DetectDevPresence() bool {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false
 	}
-	markers := []string{
-		filepath.Join(home, ".npm"),
-		filepath.Join(home, "Library", "Caches", "Homebrew"),
-		filepath.Join(home, "Library", "Caches", "JetBrains"),
-		filepath.Join(home, "Library", "Developer", "Xcode"),
-		"/Applications/Docker.app",
-		filepath.Join(home, ".cargo"),
-		filepath.Join(home, "go", "pkg"),
-	}
-	for _, m := range markers {
+	for _, m := range devPresenceMarkers(home) {
 		if _, err := os.Stat(m); err == nil {
 			return true
 		}
 	}
 	return false
 }
-

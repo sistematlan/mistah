@@ -20,8 +20,8 @@ import (
 
 	"github.com/sistematlan/mistah/internal/appcache"
 	"github.com/sistematlan/mistah/internal/caches"
-	"github.com/sistematlan/mistah/internal/device"
 	"github.com/sistematlan/mistah/internal/dev"
+	"github.com/sistematlan/mistah/internal/device"
 	"github.com/sistematlan/mistah/internal/downloads"
 	"github.com/sistematlan/mistah/internal/item"
 	"github.com/sistematlan/mistah/internal/orphans"

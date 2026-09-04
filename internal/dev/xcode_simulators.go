@@ -1,3 +1,5 @@
+//go:build darwin
+
 // Package dev detects reclaimable artefacts of dev tooling that are
 // more involved than a simple cache directory. The simple ones live
 // in internal/caches; this package is for detectors that need to

@@ -36,10 +36,10 @@ func makeDir(t *testing.T, path string, mod time.Time) {
 
 func TestSplitArchive(t *testing.T) {
 	cases := []struct {
-		in       string
-		base     string
-		ext      string
-		ok       bool
+		in   string
+		base string
+		ext  string
+		ok   bool
 	}{
 		{"foo.zip", "foo", ".zip", true},
 		{"bar.tar.gz", "bar", ".tar.gz", true},

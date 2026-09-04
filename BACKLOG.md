@@ -189,36 +189,96 @@
 
 ### Multiplataforma — análisis técnico
 
-**Estado actual:** mistah es macOS-only por diseño. Hay 18 referencias a `~/Library/`
-y todos los detectores asumen filesystem Unix con paths macOS específicos.
+**Estado actual (post sept. 2026):** mistah soporta macOS y Windows desde
+el mismo módulo Go, usando build tags (`//go:build darwin` /
+`//go:build windows`) para separar cada detector/remover concreto. La
+orquestación (`Scan`, `Plan`, `Resolver`, `item.Item`) es 100% compartida;
+solo los detectores de bajo nivel y sus paths difieren por archivo
+(`<paquete>_darwin.go` / `<paquete>_windows.go`).
 
-#### Soporte Linux (medio plazo)
+#### Soporte Windows — implementado
+
+- [x] `internal/disk`: `DirSize` reescrito con `filepath.WalkDir` nativo
+      (sin `du`), portable a cualquier OS. `Usage` usa
+      `golang.org/x/sys/windows.GetDiskFreeSpaceEx` en Windows,
+      `syscall.Statfs` en darwin/linux.
+- [x] Caches dev: `%LOCALAPPDATA%`, `%APPDATA%` — npm, pnpm, yarn, pip,
+      uv, Go, Composer, node-gyp, Cargo (ruta compartida sin cambios),
+      + NuGet (Windows-only, sin equivalente macOS en la tabla original).
+- [x] JetBrains: `%LOCALAPPDATA%\JetBrains` (vs `~/Library/Application
+      Support/JetBrains` en macOS).
+- [x] Docker: sin cambios — el CLI es idéntico en ambas plataformas.
+      (Nota: Docker Desktop en Windows usa `.vhdx` bajo WSL2 en
+      `%LOCALAPPDATA%\Docker\wsl\`; el detector de huérfanos ya lo cubre.)
+- [x] Apps instaladas: `internal/apps` reescrito para leer el Registro
+      (`HKLM`/`HKCU` × `Uninstall`, incluyendo `WOW6432Node` para apps de
+      32 bits). "Último uso" es una heurística (mtime más reciente entre
+      los archivos del directorio de instalación) — Windows no tiene un
+      campo equivalente a `kMDItemLastUsedDate` de Spotlight.
+- [x] Trash → Recycle Bin: implementado con `SHQueryRecycleBinW` /
+      `SHEmptyRecycleBinW` (Shell32), no con iteración de directorio —
+      la Papelera de Windows es un namespace virtual, no una carpeta.
+- [x] `%TEMP%`: detector nuevo sin equivalente 1:1 en macOS (borra
+      archivos >7 días, recursivo).
+- [x] Miniaturas: `thumbcache_*.db`/`iconcache_*.db` bajo
+      `AppData\Local\Microsoft\Windows\Explorer` (equivalente aproximado
+      a QuickLook; en Windows es un archivo de base de datos, no una
+      carpeta de imágenes individuales).
+- [x] Browsers: Chrome, Edge, Brave con rutas
+      `AppData\Local\...\User Data\Default\Cache` — con la misma
+      disciplina de "nunca tocar `Default\` completo, solo la subcarpeta
+      Cache" que ya regía en macOS.
+- [x] Apps consumer: Spotify, Slack, Discord, Telegram, Zoom, Teams,
+      Notion, Figma con tabla de rutas Windows equivalente.
+- [x] iOS backups / .ipsw: mismo código de parseo de Info.plist
+      (`internal/device/ios_backups.go`, sin cambios), solo la raíz
+      cambia (`AppData\Roaming\Apple Computer\MobileSync\...`).
+- [x] `SafeRoots`/`OffLimits`: `%TEMP%` + perfil de usuario; carpetas
+      protegidas (`Documents`, `Desktop`, `Videos`, `Pictures`, `Music`)
+      + Credential Manager (`AppData\Roaming\Microsoft\Credentials` /
+      `\Crypto`) como equivalente a Keychains.
+- [x] GoReleaser: target `windows/amd64` agregado, empaqueta `.zip` en
+      vez de `.tar.gz` (convención nativa de Windows).
+- [x] Validado en máquina Windows 11 real (no solo cross-compile): scan,
+      caches, clean --dry-run y clean --yes probados end-to-end vía SSH.
+
+#### Soporte Windows — deliberadamente NO portado (sin equivalente razonable)
+
+- [ ] **Time Machine snapshots** (`tmutil`) — VSS/Volume Shadow Copy es
+      el concepto más cercano en Windows, pero requiere `vssadmin` con
+      privilegios de administrador. mistah nunca eleva permisos; queda
+      fuera de alcance salvo que se decida lo contrario explícitamente.
+- [ ] **Xcode Simulators** (`xcrun simctl`) — Xcode es exclusivo Apple,
+      no hay equivalente conceptual en Windows.
+- [ ] **iMessage attachments** — iMessage no existe en Windows.
+- [ ] **Mail.app downloads** — sin Outlook equivalente implementado aún
+      (se podría agregar: `%LOCALAPPDATA%\Microsoft\Outlook\...`, pero
+      el formato de caché de Outlook es menos directo que una carpeta
+      simple; queda como follow-up, no como "imposible").
+- [ ] **Logs y crash reports genéricos** — Windows usa Event Viewer +
+      `%LOCALAPPDATA%\CrashDumps`, arquitectura distinta a "carpeta de
+      logs por app" de macOS. Sin detector dedicado todavía.
+- [ ] **Firefox en Windows** — el perfil vive en una carpeta con nombre
+      aleatorio (`xxxxxxxx.default-release`) que requiere leer
+      `profiles.ini` para resolver; se omitió de la tabla fija de
+      browsers en vez de adivinar. Follow-up sencillo.
+- [ ] **Firma de código / notarización** — el `.exe` no está firmado;
+      SmartScreen mostrará "editor desconocido". Requiere certificado de
+      firma de código (costo anual), análogo al Apple Developer ID que
+      tampoco se ha comprado todavía para macOS.
+- [ ] **Distribución nativa** (winget, Scoop, Chocolatey) — por ahora
+      solo GitHub Releases con `.zip`; no hay `install.ps1` equivalente
+      al `install.sh` de macOS.
+
+#### Soporte Linux (medio plazo, sin cambios de plan)
 - [ ] Más fácil que Windows: solo cambian paths, no APIs.
 - [ ] `~/.cache/`, `~/.config/`, `~/.local/share/` en lugar de `~/Library/*`
 - [ ] Apps desde `~/.local/share/applications/` y `/usr/share/applications/`
 - [ ] No hay `mdls` — usar `stat -c %Y` para "last modified" como proxy de uso
 - [ ] Snap, Flatpak, AppImage como sources de caches
-- [ ] **Esfuerzo estimado:** 1-2 semanas con CI Linux runner
-
-#### Soporte Windows (lejos)
-- [ ] **NO portar antes de v1.0 macOS estable.** Razones:
-  - Target del SPEC es devs macOS; ahí está el dolor real.
-  - Competencia fuerte y nativa: WizTree, TreeSize, BleachBit, Storage Sense.
-  - Devs Windows usan WSL2 → caches viven en Linux, problema diferente.
-  - 3-4 semanas de trabajo que no aporta a usuarios actuales.
-  - Cada plataforma multiplica costo de mantenimiento ~2.5x.
-- [ ] **Si se hace alguna vez:**
-  - [ ] Abstraer `PathProvider` con builds tags (`//go:build darwin`, `windows`, `linux`)
-  - [ ] Reemplazar `du -sk` por `filepath.Walk` nativo (también beneficia a macOS)
-  - [ ] Detector de apps via Windows registry (`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`)
-  - [ ] Caches: `%LOCALAPPDATA%`, `%APPDATA%`, `%TEMP%`
-  - [ ] Docker Desktop en Windows: archivos `.vhdx` en `%LOCALAPPDATA%\Docker\wsl\`
-  - [ ] Manejar archivos bloqueados (Windows: handle locking, antivirus)
-  - [ ] `SafeRoots` portable: `%USERPROFILE%`, `%TEMP%`
-  - [ ] Reemplazar prompts ANSI con detección de Windows Terminal vs cmd.exe
-  - [ ] CI con `windows-latest` runner en GitHub Actions
-  - [ ] Tests funcionales en máquina Windows real
-  - [ ] **Esfuerzo estimado:** 3-4 semanas con acceso a Windows real
+- [ ] **Esfuerzo estimado:** 1-2 semanas con CI Linux runner (el
+      `disk.DirSize` nativo ya no depende de `du`, así que ese
+      prerequisito específico ya está resuelto para Linux también)
 
 ### Métricas de salud
 
@@ -250,8 +310,8 @@ y todos los detectores asumen filesystem Unix con paths macOS específicos.
 - **`clean` por defecto**: solo caches; orphans requieren `--include-orphans`, downloads requieren `--include-downloads`
 - **UX de confirmación**: ítem por ítem con `[s/N/v/q]`, default seguro en NO
 - **Docker**: `system prune -f` (sin `--volumes`); volumes solo con flag explícito futuro `--include-volumes`
-- **SafeRoots**: solo `$HOME`, `/var/folders`, `/tmp` y `/private/*`. Cualquier otro path es rechazado.
-- **Multiplataforma**: macOS only hasta v1.0. Linux después. Windows solo si hay demanda real (no especulativa).
+- **SafeRoots**: `$HOME`/perfil de usuario + directorio temporal del sistema (`/var/folders`, `/tmp`, `/private/*` en macOS; `os.TempDir()` en Windows). Cualquier otro path es rechazado.
+- **Multiplataforma**: macOS + Windows soportados (ver "Soporte Windows" abajo, implementado en sesión de sept. 2026). Linux sigue pendiente.
 - **Cobertura objetivo v0.1.0**: caches dev + orphans básicos + downloads. P0 de Application Support (Electron, iOS Simulator, Time Machine, Mail, Messages) queda para v0.2.0.
 
 ### Democratización (sesión 4 backlog)

@@ -1,10 +1,15 @@
-# goreleaser config — produces signed darwin-arm64 + darwin-amd64 binaries
-# on every git tag matching v*. Drives `curl mistah.sistematlan.com/install.sh | sh`
-# end-to-end.
+# goreleaser config — produces signed darwin-arm64 + darwin-amd64 +
+# windows-amd64 binaries on every git tag matching v*. Drives
+# `curl mistah.sistematlan.com/install.sh | sh` end-to-end for macOS;
+# Windows users download the .zip from GitHub Releases directly (see
+# BACKLOG.md for the winget/scoop packaging follow-up).
 #
 # Apple notarization is NOT enabled yet (requires paid Developer ID).
 # Users can bypass Gatekeeper one-time with `xattr -d com.apple.quarantine`
 # until we add notarization in a future release.
+#
+# The Windows build has no code-signing certificate either — expect
+# SmartScreen's "unknown publisher" prompt until we add one.
 #
 # Quick reference:
 #   goreleaser release --snapshot --clean   # local dry-run
@@ -25,9 +30,16 @@ builds:
       - CGO_ENABLED=0
     goos:
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
+    ignore:
+      # Windows on arm64 is a real but tiny slice of the install base
+      # (Surface Pro X and similar); skip it until someone asks rather
+      # than shipping an untested cross-compile target.
+      - goos: windows
+        goarch: arm64
     # ldflags trim debug paths and embed version metadata so `mistah --version`
     # (when we add it) reflects the tag.
     ldflags:
@@ -40,10 +52,16 @@ builds:
 
 archives:
   # Tarballs named like mistah_v0.1.0_darwin_arm64.tar.gz so install.sh can
-  # construct the URL deterministically from arch + version.
+  # construct the URL deterministically from arch + version. Windows
+  # gets a .zip instead of .tar.gz — the platform-native convention,
+  # and what most Windows users' tools (Explorer, PowerShell's
+  # Expand-Archive) open without installing anything extra.
   - id: mistah-archive
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: ["tar.gz"]
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
     files:
       - LICENSE*
       - README*

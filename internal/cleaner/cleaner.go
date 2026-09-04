@@ -7,10 +7,19 @@
 //   - Prompter abstracts the user interaction so we can test it.
 //
 // Safety rules enforced here:
-//   - Never delete a path outside a known-safe prefix (home dir or /var/folders).
+//   - Never delete a path outside a known-safe prefix (home dir, or the
+//     OS temp directory).
 //   - DryRun never touches the filesystem.
 //   - Docker volumes are NEVER pruned (only `system prune -f`, no --volumes).
 //   - Empty/unknown paths are skipped, not errored, to avoid panics on malformed Items.
+//
+// Platform split: the concrete removers for the Trash/Recycle Bin
+// (TrashContentsRemover vs RecycleBinRemover), Time Machine snapshots,
+// and Xcode simulators live in cleaner_darwin.go / cleaner_windows.go —
+// their mechanics (tmutil, xcrun, SHEmptyRecycleBinW) have zero overlap
+// across OSes. Everything else in this file (Plan, PathRemover,
+// DockerPruneRemover, OldFilesRemover, the SafeRoots/OffLimits guard
+// rails) is identical on every platform.
 package cleaner
 
 import (
@@ -64,12 +73,29 @@ type Remover interface {
 	Remove(it item.Item) error
 }
 
+// Previewer is an optional capability a Remover can implement to
+// support the "v" (view) prompt: a multi-line preview of what would be
+// removed, shown before the user commits to Yes/No.
+//
+// Kept as a separate optional interface (rather than a type switch in
+// viewItem over concrete Remover types) so platform-specific removers
+// — TrashContentsRemover on macOS, RecycleBinRemover on Windows — can
+// each provide their own preview without this file needing to know
+// their concrete type. That, in turn, is what lets this file compile
+// unchanged on every OS: it never names a type that only exists in
+// cleaner_darwin.go or cleaner_windows.go.
+type Previewer interface {
+	Preview(it item.Item) string
+}
+
 // Resolver picks a Remover for an item. The default resolver maps:
 //   - Docker reclaimable → DockerPruneRemover
-//   - Trash → TrashContentsRemover (wipes children, keeps ~/.Trash dir alive)
-//   - Crash reports → OldFilesRemover (only files older than the cutoff)
-//   - Time Machine snapshots → TMSnapshotsRemover (calls tmutil)
-//   - Xcode simulators → XcodeSimulatorRemover (calls xcrun simctl delete)
+//   - Trash/Recycle Bin → the platform's trash remover (see resolveTrash)
+//   - Crash reports / temp files → OldFilesRemover (age-filtered)
+//   - Time Machine snapshots, Xcode simulators → platform-only removers
+//     (see resolveDevAdvanced; these Tool values never appear in a
+//     Windows-built binary's inventory, so falling through harmlessly
+//     is fine there)
 //   - iMessage attachments → OldFilesRemover (recursive, age-filtered)
 //   - everything else with a non-empty Path → PathRemover
 type Resolver func(it item.Item) (Remover, error)
@@ -79,8 +105,8 @@ func DefaultResolver(it item.Item) (Remover, error) {
 	if it.Tool == "docker" && it.Path == "" {
 		return DockerPruneRemover{}, nil
 	}
-	if it.Tool == "trash" && it.Path != "" {
-		return TrashContentsRemover{}, nil
+	if r, ok := resolveTrash(it); ok {
+		return r, nil
 	}
 	if it.Tool == "crash-reports" && it.Path != "" {
 		// 30-day cutoff matches scanCrashReports' detection window.
@@ -91,11 +117,18 @@ func DefaultResolver(it item.Item) (Remover, error) {
 			Extensions: []string{".crash", ".diag", ".ips", ".spin", ".hang"},
 		}, nil
 	}
-	if it.Tool == "tm-snapshots" {
-		return TMSnapshotsRemover{}, nil
+	if it.Tool == "temp" && it.Path != "" {
+		// Mirrors the crash-reports cutoff shape but for Windows'
+		// %TEMP% detector (system_windows.go's scanTempFiles): age-only
+		// filter, no extension restriction (temp junk has arbitrary
+		// extensions), recursive since installers nest subfolders.
+		return OldFilesRemover{
+			MaxAgeDays: 7,
+			Recursive:  true,
+		}, nil
 	}
-	if it.Tool == "xcode-simulator" && it.Path != "" {
-		return XcodeSimulatorRemover{}, nil
+	if r, ok := resolveDevAdvanced(it); ok {
+		return r, nil
 	}
 	if it.Tool == "ios-messages" && it.Path != "" {
 		// 180-day cutoff matches scanMessagesAttachments' detection
@@ -217,48 +250,31 @@ func (p *Plan) decide(it item.Item, remover Remover) Decision {
 }
 
 // viewItem builds the multi-line preview shown when the user types "v".
-// For PathRemover we list the immediate children. For Docker we run `docker system df`.
+// Delegates to the remover's own Preview method when it implements
+// Previewer; removers with no meaningful preview (or that this build
+// doesn't even define, on another OS) get a generic fallback message.
 func viewItem(it item.Item, remover Remover) string {
-	switch r := remover.(type) {
-	case PathRemover:
-		return r.previewPath(it.Path)
-	case TrashContentsRemover:
-		// The trash preview is identical in spirit to PathRemover's:
-		// list immediate children so the user can sanity-check what
-		// they're about to lose. Reuse PathRemover.previewPath rather
-		// than re-implementing the same logic.
-		return PathRemover{}.previewPath(it.Path)
-	case DockerPruneRemover:
-		out, _ := exec.Command("docker", "system", "df").Output()
-		return string(out)
-	default:
-		return fmt.Sprintf("(no preview available for %T)", remover)
+	if p, ok := remover.(Previewer); ok {
+		return p.Preview(it)
 	}
+	return fmt.Sprintf("(no preview available for %T)", remover)
 }
-
-// SafeRoots are the only filesystem prefixes a PathRemover will touch.
-// Anything outside this set is rejected with ErrUnsafePath.
-//
-// /var/folders and /tmp are included so tests using TempDir work transparently;
-// they are also legitimate caches in macOS.
-var SafeRoots = func() []string {
-	roots := []string{"/var/folders", "/tmp", "/private/var/folders", "/private/tmp"}
-	if home, err := os.UserHomeDir(); err == nil {
-		roots = append(roots, home)
-	}
-	return roots
-}()
 
 // ErrUnsafePath is returned when a PathRemover is asked to delete outside SafeRoots.
 var ErrUnsafePath = errors.New("path is outside safe roots; refusing to delete")
+
+// ErrOffLimits is returned when a PathRemover is asked to touch a path
+// inside an OffLimits prefix. Distinct from ErrUnsafePath so callers can
+// tell "we don't reach there" apart from "we refuse to touch user data".
+var ErrOffLimits = errors.New("path is off-limits; mistah refuses to delete user data here")
 
 // OffLimits lists path prefixes that mistah will NEVER delete from,
 // regardless of what any detector reported. This is a second defensive
 // barrier on top of SafeRoots:
 //
-//   SafeRoots answers "is this path in a place we're allowed to touch?".
-//   OffLimits answers "even if we're allowed, is this user data we must
-//                      not touch?".
+//	SafeRoots answers "is this path in a place we're allowed to touch?".
+//	OffLimits answers "even if we're allowed, is this user data we must
+//	                   not touch?".
 //
 // Both must pass before PathRemover proceeds. A misbehaving detector that
 // reports ~/Documents/foo.txt is caught here, even though ~/Documents is
@@ -268,43 +284,6 @@ var ErrUnsafePath = errors.New("path is outside safe roots; refusing to delete")
 // rebuild the slice with DefaultOffLimits(tempHome) when they need to
 // exercise the check against a fixture.
 var OffLimits = DefaultOffLimits(homeOrEmpty())
-
-// DefaultOffLimits returns the standard list of protected prefixes for a
-// given home directory. Exported for tests; production code uses the
-// pre-built OffLimits variable.
-//
-// Notes on the chosen prefixes:
-//   - ~/Documents, ~/Desktop, ~/Movies, ~/Music: top-level user data folders
-//     where no cache or trash should ever live. Blanket protection.
-//   - ~/Pictures: blocked at the root. Future detectors that want to clean
-//     specific Photos Library cache subpaths must be reviewed individually
-//     and may need to bypass this only for explicitly-whitelisted children.
-//   - ~/Library/Mobile Documents: iCloud Drive. Touching this can sync a
-//     deletion to every other Apple device the user owns. Hard no.
-//   - ~/Library/Keychains: passwords, secure notes, certificates.
-//   - ~/Library/Application Support/AddressBook and ~/Library/Calendars:
-//     contacts and calendars, irreplaceable user data.
-func DefaultOffLimits(home string) []string {
-	if home == "" {
-		return nil
-	}
-	return []string{
-		filepath.Join(home, "Documents"),
-		filepath.Join(home, "Desktop"),
-		filepath.Join(home, "Movies"),
-		filepath.Join(home, "Pictures"),
-		filepath.Join(home, "Music"),
-		filepath.Join(home, "Library", "Mobile Documents"),
-		filepath.Join(home, "Library", "Keychains"),
-		filepath.Join(home, "Library", "Application Support", "AddressBook"),
-		filepath.Join(home, "Library", "Calendars"),
-	}
-}
-
-// ErrOffLimits is returned when a PathRemover is asked to touch a path
-// inside an OffLimits prefix. Distinct from ErrUnsafePath so callers can
-// tell "we don't reach there" apart from "we refuse to touch user data".
-var ErrOffLimits = errors.New("path is off-limits; mistah refuses to delete user data here")
 
 // homeOrEmpty returns the user's home dir or "" if it can't be resolved.
 // Wrapped to keep the OffLimits init expression readable.
@@ -341,6 +320,12 @@ func (PathRemover) Remove(it item.Item) error {
 		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
 	}
 	return os.RemoveAll(abs)
+}
+
+// Preview implements Previewer: up to N child entries with sizes for
+// the "view" UI.
+func (PathRemover) Preview(it item.Item) string {
+	return PathRemover{}.previewPath(it.Path)
 }
 
 // previewPath returns up to N child entries with sizes for the "view" UI.
@@ -399,6 +384,8 @@ func isOffLimits(abs string) bool {
 
 // DockerPruneRemover invokes `docker system prune -f` to free reclaimable space.
 // It does NOT pass --volumes; user data on volumes stays untouched.
+// Docker's CLI is identical on every OS mistah supports, so this remover
+// needs no platform split.
 type DockerPruneRemover struct{}
 
 func (DockerPruneRemover) Describe(it item.Item) string {
@@ -414,58 +401,12 @@ func (DockerPruneRemover) Remove(it item.Item) error {
 	return nil
 }
 
-// TrashContentsRemover wipes the contents of a Trash directory while
-// keeping the directory itself in place. macOS Finder treats ~/.Trash
-// as a special location and stops working correctly if the directory
-// disappears, so a plain os.RemoveAll on it is wrong even though it
-// would technically free the same bytes.
-//
-// Children are removed individually with os.RemoveAll so subdirectories
-// are wiped recursively. Errors on individual children are tolerated:
-// macOS sometimes places files with restricted permissions (especially
-// from app sandboxes) and a permission-denied on one item should not
-// block the rest. The first error seen is returned at the end so the
-// cleaner reports the failure, but the bulk of the trash still gets
-// emptied.
-//
-// The path is validated against SafeRoots and OffLimits via the same
-// helpers used by PathRemover before any deletion happens.
-type TrashContentsRemover struct{}
-
-func (TrashContentsRemover) Describe(it item.Item) string {
-	return fmt.Sprintf("vaciar Trash (%s)", it.Path)
-}
-
-func (TrashContentsRemover) Remove(it item.Item) error {
-	if it.Path == "" {
-		return errors.New("empty path")
-	}
-	abs, err := filepath.Abs(it.Path)
-	if err != nil {
-		return err
-	}
-	if !isUnderSafeRoot(abs) {
-		return fmt.Errorf("%w: %s", ErrUnsafePath, abs)
-	}
-	// The Trash directory itself is not in OffLimits, but a future
-	// detector mistake (e.g. reporting ~/Documents as the trash path)
-	// is exactly the case OffLimits exists to catch.
-	if isOffLimits(abs) {
-		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
-	}
-
-	entries, err := os.ReadDir(abs)
-	if err != nil {
-		return err
-	}
-	var firstErr error
-	for _, e := range entries {
-		child := filepath.Join(abs, e.Name())
-		if rmErr := os.RemoveAll(child); rmErr != nil && firstErr == nil {
-			firstErr = rmErr
-		}
-	}
-	return firstErr
+// Preview implements Previewer by showing `docker system df`, the same
+// breakdown the wizard's confirmation banner would want to show before
+// pruning.
+func (DockerPruneRemover) Preview(it item.Item) string {
+	out, _ := exec.Command("docker", "system", "df").Output()
+	return string(out)
 }
 
 // OldFilesRemover deletes files inside a directory that are older than
@@ -477,11 +418,12 @@ func (TrashContentsRemover) Remove(it item.Item) error {
 //	Extensions  When non-empty, only files whose name ends in one of
 //	            these (case-insensitive) are eligible. When EMPTY, every
 //	            file matches — used for opaque blobs like iMessage
-//	            attachments where the extension is irrelevant.
+//	            attachments or Windows %TEMP% junk where the extension
+//	            is irrelevant or unpredictable.
 //	Recursive   When false, only immediate children are considered
 //	            (crash reports live flat). When true, the whole subtree
-//	            is walked — iMessage attachments live in a hashed tree
-//	            of subdirectories.
+//	            is walked — iMessage attachments and %TEMP% both live in
+//	            nested subdirectory trees.
 //
 // The defaults (Extensions set, Recursive false) preserve the original
 // crash-reports behaviour, so existing callers don't change.
@@ -562,9 +504,9 @@ func (r OldFilesRemover) removeFlat(dir string, cutoff time.Time) error {
 
 // removeTree walks the whole subtree, deleting eligible files. Only
 // files are removed; directories (including the root and now-empty
-// intermediates) are left in place. This is the iMessage path: the
-// Attachments tree has a hashed directory layout that Messages.app
-// expects to exist.
+// intermediates) are left in place. This is the iMessage/temp-files
+// path: both have a nested directory layout their owner (Messages.app,
+// or arbitrary installers writing into %TEMP%) expects to keep existing.
 //
 // filepath.WalkDir tolerates per-entry errors: when WalkDir hands us an
 // error for a node we record it and skip that node rather than aborting
@@ -603,8 +545,8 @@ func (r OldFilesRemover) removeTree(root string, cutoff time.Time) error {
 }
 
 // matchesExt reports whether name is eligible. An empty Extensions list
-// means "match everything" — the iMessage case, where attachments have
-// arbitrary or no extensions. Otherwise it's case-insensitive suffix
+// means "match everything" — the iMessage/temp-files case, where files
+// have arbitrary or no extensions. Otherwise it's case-insensitive suffix
 // matching. Centralised so the regression test can call it directly.
 func (r OldFilesRemover) matchesExt(name string) bool {
 	if len(r.Extensions) == 0 {
@@ -619,164 +561,12 @@ func (r OldFilesRemover) matchesExt(name string) bool {
 	return false
 }
 
-// TMSnapshotsRemover deletes Time Machine local snapshots by shelling
-// out to `tmutil`. The detector in internal/system reports them with
-// Tool="tm-snapshots"; this remover lists them again at delete time
-// and runs `tmutil deletelocalsnapshots <date>` for each.
-//
-// Why list twice? The detector and remover are decoupled by design:
-// the detector lives in internal/system, the remover lives here so
-// the cleaner stays the single home of all deletion logic. Sharing
-// state through Item fields would force every Item to carry an opaque
-// blob of detector-specific data, which complicates the contract.
-// `tmutil listlocalsnapshots /` is fast (~50 ms) and idempotent — a
-// snapshot deleted between the two listings just doesn't appear on
-// the second pass, no error.
-//
-// Test seam: tmutilCommand is a package-level var so tests can mock
-// the binary without messing with PATH.
-type TMSnapshotsRemover struct{}
-
-func (TMSnapshotsRemover) Describe(_ item.Item) string {
-	return "tmutil deletelocalsnapshots <each>"
-}
-
-func (TMSnapshotsRemover) Remove(_ item.Item) error {
-	names, err := tmutilList()
-	if err != nil {
-		return fmt.Errorf("tmutil list failed: %w", err)
-	}
-	var firstErr error
-	for _, name := range names {
-		date := tmSnapshotDate(name)
-		if date == "" {
-			continue
-		}
-		if err := tmutilDelete(date); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
-}
-
-// tmutilCommand is the test seam used by tmutilList and tmutilDelete.
-// Production points it at the real binary; tests inject a function
-// that returns canned output. The single seam covers both list and
-// delete invocations, so a mock can route by inspecting args[0].
-var tmutilCommand = func(args ...string) ([]byte, error) {
-	return exec.Command("tmutil", args...).CombinedOutput()
-}
-
-// tmutilList runs `tmutil listlocalsnapshots /` and returns snapshot
-// names. Failure here aborts the remover; we don't try to recover
-// from a missing tmutil since macOS always ships it.
-func tmutilList() ([]string, error) {
-	out, err := tmutilCommand("listlocalsnapshots", "/")
-	if err != nil {
-		return nil, err
-	}
-	const prefix = "com.apple.TimeMachine."
-	var names []string
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, prefix) {
-			names = append(names, line)
-		}
-	}
-	return names, nil
-}
-
-// tmutilDelete asks tmutil to drop a single snapshot. The date string
-// is the part between "com.apple.TimeMachine." and ".local"; tmutil
-// rejects anything else with a non-zero exit code, which we surface.
-func tmutilDelete(date string) error {
-	out, err := tmutilCommand("deletelocalsnapshots", date)
-	if err != nil {
-		return fmt.Errorf("tmutil delete %s failed: %v: %s",
-			date, err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-// tmSnapshotDate extracts the date portion of a snapshot name.
-// Mirrors the detector's parsing in internal/system/snapshots.go;
-// kept inline here so the remover doesn't depend on the system
-// package (would create a cleaner ↔ system import cycle through
-// the resolver).
-func tmSnapshotDate(name string) string {
-	const prefix = "com.apple.TimeMachine."
-	const suffix = ".local"
-	if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
-		return ""
-	}
-	return strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
-}
-
-// XcodeSimulatorRemover deletes a single CoreSimulator device by
-// asking xcrun to do it. The detector reports one Item per stale
-// device with Path pointing at
-// ~/Library/Developer/CoreSimulator/Devices/<UDID>/, and we extract
-// the UDID from filepath.Base(Path).
-//
-// Why not just os.RemoveAll(Path)? `xcrun simctl delete <UDID>` also
-// updates Xcode's device index. Removing the directory by hand leaves
-// a phantom device in `simctl list` until the user runs `simctl
-// erase` or restarts. The shell call costs ~200ms but keeps Xcode
-// consistent.
-//
-// If `xcrun` fails (no Xcode installed, simctl in a bad state), we
-// fall back to a plain os.RemoveAll so the user still reclaims the
-// bytes. The phantom-index cost is acceptable when the alternative is
-// "cleaner did nothing".
-type XcodeSimulatorRemover struct{}
-
-func (XcodeSimulatorRemover) Describe(it item.Item) string {
-	return fmt.Sprintf("xcrun simctl delete %s", filepath.Base(it.Path))
-}
-
-func (XcodeSimulatorRemover) Remove(it item.Item) error {
-	if it.Path == "" {
-		return errors.New("empty path")
-	}
-	abs, err := filepath.Abs(it.Path)
-	if err != nil {
-		return err
-	}
-	if !isUnderSafeRoot(abs) {
-		return fmt.Errorf("%w: %s", ErrUnsafePath, abs)
-	}
-	if isOffLimits(abs) {
-		return fmt.Errorf("%w: %s", ErrOffLimits, abs)
-	}
-
-	udid := filepath.Base(abs)
-	out, xerr := xcrunCommand("simctl", "delete", udid)
-	if xerr == nil {
-		return nil
-	}
-	// xcrun failed; fall back to os.RemoveAll so the user still
-	// gets the bytes back. Wrap both errors so the caller sees the
-	// original xcrun reason in the log.
-	if rmErr := os.RemoveAll(abs); rmErr != nil {
-		return fmt.Errorf("xcrun delete failed (%v: %s) and rm fallback failed: %w",
-			xerr, strings.TrimSpace(string(out)), rmErr)
-	}
-	return nil
-}
-
-// xcrunCommand is the test seam for XcodeSimulatorRemover. Same shape
-// as tmutilCommand: a swappable var so tests don't need to mess with
-// PATH or build fake binaries.
-var xcrunCommand = func(args ...string) ([]byte, error) {
-	return exec.Command("xcrun", args...).CombinedOutput()
-}
-
 // Summary aggregates Run results for the final report.
 type Summary struct {
-	Removed     int
-	Skipped     int
-	Failed      int
-	BytesFreed  int64
+	Removed      int
+	Skipped      int
+	Failed       int
+	BytesFreed   int64
 	BytesPlanned int64
 }
 

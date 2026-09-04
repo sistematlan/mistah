@@ -1,3 +1,5 @@
+//go:build darwin
+
 package system
 
 import (
@@ -87,10 +89,10 @@ func TestCrashReports_OnlyOldFilesCount(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, "Library", "Logs", "DiagnosticReports")
 	now := time.Now()
-	seedFile(t, dir, "recent.crash", 100, now.Add(-1*24*time.Hour))           // 1 day → keep
-	seedFile(t, dir, "old.crash", 200, now.Add(-60*24*time.Hour))             // 60 days → reclaim
-	seedFile(t, dir, "ancient.ips", 400, now.Add(-200*24*time.Hour))          // 200 days → reclaim
-	seedFile(t, dir, "skip.txt", 1000, now.Add(-200*24*time.Hour))            // wrong ext → ignore
+	seedFile(t, dir, "recent.crash", 100, now.Add(-1*24*time.Hour))  // 1 day → keep
+	seedFile(t, dir, "old.crash", 200, now.Add(-60*24*time.Hour))    // 60 days → reclaim
+	seedFile(t, dir, "ancient.ips", 400, now.Add(-200*24*time.Hour)) // 200 days → reclaim
+	seedFile(t, dir, "skip.txt", 1000, now.Add(-200*24*time.Hour))   // wrong ext → ignore
 
 	items := scanCrashReports(home)
 	if len(items) != 1 {

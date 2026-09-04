@@ -1,5 +1,12 @@
 // Package caches detects regenerable caches from common dev tools.
 // Items returned here are safe to remove: rebuilding them costs time, not data.
+//
+// Platform split: the concrete list of "simple path caches" (npm, pip,
+// Go, etc.) lives in caches_darwin.go / caches_windows.go because every
+// tool keeps its cache in a different OS convention (~/Library/Caches
+// vs %LOCALAPPDATA%). The comparison/dedup logic below (JetBrains old
+// versions, Docker reclaimable space) is identical on every OS and
+// stays here, parameterised by a platform-provided root path.
 package caches
 
 import (
@@ -13,6 +20,13 @@ import (
 	"github.com/sistematlan/mistah/internal/item"
 )
 
+// pathCache describes one simple "measure this directory" cache entry.
+// keyBase drives the i18n lookup ("caches.<key>.name" / ".detail");
+// Name/Detail are the fallback strings for tools without a catalog entry.
+type pathCache struct {
+	keyBase, name, tool, rel, detail string
+}
+
 // Scan runs every cache detector and returns the items found.
 // Missing paths are skipped silently; errors are only returned for
 // unexpected I/O failures.
@@ -24,38 +38,7 @@ func Scan() ([]item.Item, error) {
 
 	var items []item.Item
 
-	// Simple path-based caches. All RiskSafe — these regenerate on demand.
-	//
-	// The KeyBase is used to look up "caches.<key>.name" / ".detail.simple" /
-	// ".detail.advanced" in the i18n catalog. Tools without translations fall
-	// back to the legacy Name/Detail strings (kept here for safety).
-	pathCaches := []struct {
-		keyBase, name, tool, rel, detail string
-	}{
-		{"npm", "npm cache", "npm", ".npm/_cacache", "downloaded packages"},
-		{"npm-npx", "npm npx cache", "npm", ".npm/_npx", "one-shot npx executions"},
-		{"npm-logs", "npm logs", "npm", ".npm/_logs", "old install logs"},
-		{"pnpm", "pnpm store", "pnpm", "Library/pnpm/store", "global content-addressable store"},
-		{"yarn", "yarn cache", "yarn", ".yarn/cache", "downloaded packages"},
-		{"brew", "Homebrew cache", "brew", "Library/Caches/Homebrew", "downloaded bottles & sources"},
-		{"jetbrains", "JetBrains cache", "jetbrains", "Library/Caches/JetBrains", "indexes y logs"},
-		{"go", "Go build cache", "go", "Library/Caches/go-build", "compilation cache"},
-		{"pip", "pip cache", "pip", "Library/Caches/pip", "wheels & http cache"},
-		{"uv", "uv cache", "uv", ".cache/uv", "Python package cache"},
-		{"composer", "Composer cache", "composer", "Library/Caches/composer", "PHP packages"},
-		{"node-gyp", "node-gyp cache", "node-gyp", "Library/Caches/node-gyp", "native build headers"},
-		// Chrome and Firefox previously lived here under "browser cache".
-		// They moved to internal/appcache/browsers.go (CategorySystem) so
-		// they no longer count as "dev tooling" — a non-dev user with
-		// Chrome installed shouldn't trip the dev-tools detector. Adding
-		// either browser back here would re-introduce that bug.
-		{"xcode-derived", "Xcode DerivedData", "xcode", "Library/Developer/Xcode/DerivedData", "build artifacts"},
-		{"xcode-archives", "Xcode Archives", "xcode", "Library/Developer/Xcode/Archives", "old release archives"},
-		{"xcode-ios-support", "iOS DeviceSupport", "xcode", "Library/Developer/Xcode/iOS DeviceSupport", "symbol files for old iOS versions"},
-		{"xcode-simulator", "CoreSimulator caches", "xcode", "Library/Developer/CoreSimulator/Caches", "simulator caches"},
-	}
-
-	for _, pc := range pathCaches {
+	for _, pc := range platformPathCaches(home) {
 		path := filepath.Join(home, pc.rel)
 		bytes, ok := safeSize(path)
 		if !ok {
@@ -75,7 +58,9 @@ func Scan() ([]item.Item, error) {
 	}
 
 	// Cargo caches: registry/{cache,src} and git/checkouts can be removed.
-	// We do NOT touch ~/.cargo/bin or registry/index.
+	// We do NOT touch ~/.cargo/bin or registry/index. ~/.cargo is the
+	// same relative location on macOS, Linux and Windows — no platform
+	// split needed here.
 	cargoSubs := []struct {
 		keyBase, rel, detail string
 	}{
@@ -102,13 +87,15 @@ func Scan() ([]item.Item, error) {
 		})
 	}
 
-	// JetBrains: detect old IDE versions in Application Support.
+	// JetBrains: detect old IDE versions in the platform's config root.
 	// Each version dir is independent — listing them as separate items lets the user pick.
-	if jb, err := jetBrainsOldVersions(home); err == nil {
+	if jb, err := jetBrainsOldVersions(jetBrainsRoot(home)); err == nil {
 		items = append(items, jb...)
 	}
 
-	// Docker — uses the docker CLI to ask the daemon directly.
+	// Docker — uses the docker CLI to ask the daemon directly. The CLI
+	// itself is identical on every OS (Docker Desktop ships it on
+	// Windows too), so no platform split is needed here.
 	if d, ok := dockerReclaimable(); ok {
 		items = append(items, d)
 	}
@@ -117,7 +104,7 @@ func Scan() ([]item.Item, error) {
 }
 
 // safeSize returns the size of path in bytes. If path doesn't exist
-// or du fails, it returns 0,false so the caller can skip the item.
+// or measuring fails, it returns 0,false so the caller can skip the item.
 func safeSize(path string) (int64, bool) {
 	if _, err := os.Stat(path); err != nil {
 		return 0, false
@@ -129,10 +116,12 @@ func safeSize(path string) (int64, bool) {
 	return bytes, true
 }
 
-// jetBrainsOldVersions lists IDE config dirs whose version is older than
-// the latest one for that product. Newest version is preserved.
-func jetBrainsOldVersions(home string) ([]item.Item, error) {
-	root := filepath.Join(home, "Library/Application Support/JetBrains")
+// jetBrainsOldVersions lists IDE config dirs under root whose version is
+// older than the latest one for that product. Newest version is preserved.
+// root is platform-specific (see jetBrainsRoot in caches_darwin.go /
+// caches_windows.go); the comparison logic itself doesn't care where the
+// directory lives.
+func jetBrainsOldVersions(root string) ([]item.Item, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, nil // not installed

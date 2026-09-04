@@ -1,17 +1,23 @@
-// Package device — iOS device backups.
+// iOS device backups.
 //
-// macOS keeps a full backup of every iPhone/iPad ever synced via Finder
-// or iTunes under
+// iTunes / Apple Devices keeps a full backup of every iPhone/iPad ever
+// synced under a per-OS root (see mobileSyncBackupRoot in
+// device_darwin.go / device_windows.go):
 //
-//	~/Library/Application Support/MobileSync/Backup/<UDID>/
+//	macOS:   ~/Library/Application Support/MobileSync/Backup/<UDID>/
+//	Windows: %APPDATA%\Apple Computer\MobileSync\Backup\<UDID>/
 //
 // Each UDID is a separate directory; users with three iPhones over five
 // years will have three of them. They commonly grow to 4–15 GB each
-// and are the single biggest reclaimable item on a non-dev Mac.
+// and are the single biggest reclaimable item on a non-dev machine.
 //
 // They're also user data: a backup may be the only copy of a phone
 // that was lost or factory-reset before iCloud sync. Risk is
 // RiskAskBefore and the wizard NEVER auto-deletes them.
+//
+// Everything below this point — UDID matching, Info.plist parsing,
+// display name composition — is pure filesystem/XML logic with no OS
+// dependency, so it stays in this one shared file.
 
 package device
 
@@ -32,7 +38,7 @@ import (
 // the user's home. Errors reading individual UDIDs are tolerated; we
 // skip them rather than fail the whole detector.
 func ScanIOSBackups(home string) []item.Item {
-	root := filepath.Join(home, "Library", "Application Support", "MobileSync", "Backup")
+	root := mobileSyncBackupRoot(home)
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil

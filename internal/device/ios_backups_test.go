@@ -1,3 +1,5 @@
+//go:build darwin
+
 package device
 
 import (
@@ -176,13 +178,13 @@ func TestScanIOSBackups_MultipleDevices(t *testing.T) {
 // also include negative cases that previously caused false positives.
 func TestLooksLikeUDID(t *testing.T) {
 	cases := map[string]bool{
-		"00008101-001B12340C9D2E14":                 true,  // modern
-		"5e5a8c443f9d2e3a4b5c6d7e8f0a1b2c3d4e5f60": true,  // 40-char legacy
-		".DS_Store":                                false, // hidden
-		"notes":                                    false, // too short
-		"00008101_001B12340C9D2E14":                false, // underscore not allowed
-		"00008101-001B12340C9D2E14XYZ":             false, // non-hex tail
-		"":                                        false, // empty
+		"00008101-001B12340C9D2E14":                true, // modern
+		"5e5a8c443f9d2e3a4b5c6d7e8f0a1b2c3d4e5f60": true, // 40-char legacy
+		".DS_Store":                    false, // hidden
+		"notes":                        false, // too short
+		"00008101_001B12340C9D2E14":    false, // underscore not allowed
+		"00008101-001B12340C9D2E14XYZ": false, // non-hex tail
+		"":                             false, // empty
 	}
 	for name, want := range cases {
 		if got := looksLikeUDID(name); got != want {

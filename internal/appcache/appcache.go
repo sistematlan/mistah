@@ -1,6 +1,7 @@
 // Package appcache detects reclaimable cache directories of common
 // consumer apps that ship outside the dev toolchain — Spotify, Slack,
-// Discord, Zoom, Teams, Notion, Figma, Arc, Telegram, Linear and so on.
+// Discord, Zoom, Teams, Notion, Figma, Arc, Telegram, Linear and so on
+// — plus desktop browser caches (Chrome, Firefox, Edge, etc.).
 //
 // These are not orphans (the apps are still installed) and not dev
 // caches (the user is not a developer of the app). They are first-class
@@ -13,13 +14,16 @@
 //   - caches/ today is the dev-tools list (npm, brew, pip, JetBrains,
 //     Xcode, Go, Composer…). Mixing Spotify there would erode that
 //     contract.
-//   - The wizard filters Light by "RiskSafe + Path != ''" over inv.Caches.
+//   - The wizard filters Light by "RiskSafe + Path != ”" over inv.Caches.
 //     We need these caches to live in CategorySystem so a future wizard
 //     bucket "what every Mac has" can pull them without dragging dev
 //     caches along on a no-dev machine.
 //
 // The catalog is data, not code: adding an app means adding one entry
-// to the entries slice. No detector logic is per-app.
+// to the platform-specific entries table (appcache_darwin.go /
+// appcache_windows.go). No detector logic is per-app or per-OS — only
+// the path convention differs (~/Library/Caches/<bundle-id> vs
+// %LOCALAPPDATA%\<Vendor>\<App>\Cache).
 package appcache
 
 import (
@@ -45,8 +49,13 @@ var minCacheBytes int64 = 10 * 1024 * 1024
 //
 // Fields:
 //
-//	bundleID    — the macOS bundle identifier, used as the i18n key
+//	bundleID    — a stable per-app identifier used as the i18n key
 //	              suffix and as the Tool field on the resulting Item.
+//	              On macOS this is the real bundle identifier; on
+//	              Windows there's no equivalent concept, so we reuse a
+//	              vendor-style dotted string for consistency (e.g.
+//	              "com.spotify.client" on both platforms) so i18n keys
+//	              and Tool comparisons work identically cross-platform.
 //	displayName — what the user sees in the menu. Localised via i18n
 //	              when "appcache.<bundleID>.name" exists; this is the
 //	              fallback for missing translations.
@@ -63,115 +72,28 @@ type entry struct {
 	relPath     string
 }
 
-// entries is the canonical list. Adding an app is a one-line change:
-// pick the correct bundle ID by checking ~/Library/Caches/<id> on a
-// real Mac (or running `mdls -name kMDItemCFBundleIdentifier /Applications/<App>.app`).
-//
-// Order is roughly "biggest typical cache first" so the menu reads
-// naturally when sorted by size, but that's cosmetic — Scan() sorts
-// nothing here, callers decide order.
-//
-// Path conventions on macOS:
-//
-//   - ~/Library/Caches/<bundle-id>            HTTP and asset caches; sandboxed apps.
-//   - ~/Library/Application Support/<App>/Cache  Some Electron apps put cache here.
-//   - ~/Library/Containers/<bundle-id>/Data/Library/Caches/  Sandboxed apps (newer macOS).
-//
-// We list the canonical macOS paths. Apps that store cache OUTSIDE
-// these locations (e.g. Spotify's PersistentCache under Application
-// Support) get an explicit entry pointing there.
-var entries = []entry{
-	// Music & media — typically the largest of consumer caches.
-	{
-		bundleID:    "com.spotify.client",
-		displayName: "Spotify",
-		relPath:     "Library/Caches/com.spotify.client",
-	},
-	{
-		bundleID:    "com.spotify.client",
-		displayName: "Spotify",
-		subLabel:    "PersistentCache",
-		relPath:     "Library/Application Support/Spotify/PersistentCache",
-	},
+// entries is the canonical list for the running OS, provided by
+// appcache_darwin.go or appcache_windows.go via platformEntries().
+var entries = platformEntries()
 
-	// Communication apps — Electron-based, tend to grow without bound.
-	{
-		bundleID:    "com.tinyspeck.slackmacgap",
-		displayName: "Slack",
-		relPath:     "Library/Caches/com.tinyspeck.slackmacgap",
-	},
-	{
-		bundleID:    "com.tinyspeck.slackmacgap",
-		displayName: "Slack",
-		subLabel:    "Service Worker",
-		relPath:     "Library/Application Support/Slack/Service Worker",
-	},
-	{
-		bundleID:    "com.hnc.Discord",
-		displayName: "Discord",
-		relPath:     "Library/Caches/com.hnc.Discord",
-	},
-	{
-		bundleID:    "com.hnc.Discord",
-		displayName: "Discord",
-		subLabel:    "Cache",
-		relPath:     "Library/Application Support/discord/Cache",
-	},
-	{
-		bundleID:    "ru.keepcoder.Telegram",
-		displayName: "Telegram",
-		relPath:     "Library/Caches/ru.keepcoder.Telegram",
-	},
-	{
-		bundleID:    "ru.keepcoder.Telegram",
-		displayName: "Telegram",
-		subLabel:    "Group Containers media",
-		relPath:     "Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram/account-1/postbox/media",
-	},
-
-	// Video conferencing.
-	{
-		bundleID:    "us.zoom.xos",
-		displayName: "Zoom",
-		relPath:     "Library/Caches/us.zoom.xos",
-	},
-	{
-		bundleID:    "com.microsoft.teams2",
-		displayName: "Microsoft Teams",
-		relPath:     "Library/Caches/com.microsoft.teams2",
-	},
-	{
-		bundleID:    "com.microsoft.teams",
-		displayName: "Microsoft Teams (legacy)",
-		relPath:     "Library/Caches/com.microsoft.teams",
-	},
-
-	// Productivity & design.
-	{
-		bundleID:    "notion.id",
-		displayName: "Notion",
-		relPath:     "Library/Caches/notion.id",
-	},
-	{
-		bundleID:    "com.figma.Desktop",
-		displayName: "Figma",
-		relPath:     "Library/Caches/com.figma.Desktop",
-	},
-	{
-		bundleID:    "com.linear",
-		displayName: "Linear",
-		relPath:     "Library/Caches/com.linear",
-	},
-
-	// Browsers handled here too when they're "secondary" browsers; the
-	// primary browser detector lives in PR 4 with its own table. Arc is
-	// included here because users treat it as an app, not a browser.
-	{
-		bundleID:    "company.thebrowser.Browser",
-		displayName: "Arc",
-		relPath:     "Library/Caches/company.thebrowser.Browser",
-	},
+// browserEntry describes one cache directory for a desktop browser.
+// Kept as its own table (see browsers table in the platform files) for
+// two reasons:
+//
+//  1. They share a category — "browser cache" reads better in the wizard
+//     than 5 generic app rows mixed in with Spotify and Slack.
+//  2. They have stricter path discipline than apps: a typo in a Spotify
+//     entry costs 2 GB of regenerable cache; a typo in a Chrome entry
+//     could nuke bookmarks. The path convention for "just the cache,
+//     never the profile" differs per OS but the discipline is the same.
+type browserEntry struct {
+	tool        string // stable identifier for the cleaner & i18n
+	displayName string // user-visible name
+	relPath     string // relative to home; must be a pure cache leaf, never profile data
 }
+
+// browsers is the canonical browser cache list for the running OS.
+var browsers = platformBrowsers()
 
 // Scan inspects the caches of every app in the catalog and returns the
 // items found. Apps that aren't installed produce no entries — we don't
@@ -187,9 +109,9 @@ func Scan() ([]item.Item, error) {
 // ScanHome is Scan with an explicit home directory, for tests using
 // t.TempDir(). Production code uses Scan().
 //
-// Includes both the consumer-app caches in this file and the browser
-// caches from browsers.go. Callers who need only one bucket can use
-// ScanApps or ScanBrowsers directly.
+// Includes both the consumer-app caches and the browser caches.
+// Callers who need only one bucket can use ScanApps or ScanBrowsers
+// directly.
 func ScanHome(home string) []item.Item {
 	items := ScanApps(home)
 	items = append(items, ScanBrowsers(home)...)
@@ -198,8 +120,8 @@ func ScanHome(home string) []item.Item {
 
 // ScanApps reports only the consumer-app cache items (Spotify, Slack,
 // Discord, Notion, etc.). Split out from ScanHome so the wizard can
-// group apps and browsers as separate UI rows in PR 9 without having
-// to re-filter a merged slice.
+// group apps and browsers as separate UI rows without having to
+// re-filter a merged slice.
 func ScanApps(home string) []item.Item {
 	var items []item.Item
 	for _, e := range entries {
@@ -218,6 +140,32 @@ func ScanApps(home string) []item.Item {
 			Detail:     "caché de " + e.displayName + "; la app la regenera al usarse",
 			DetailKey:  "appcache.detail",
 			DetailArgs: []any{e.displayName},
+		})
+	}
+	return items
+}
+
+// ScanBrowsers reports browser cache items below a home directory.
+// Same threshold and risk policy as ScanApps: items under minCacheBytes
+// are dropped, all results are RiskSafe and CategorySystem.
+func ScanBrowsers(home string) []item.Item {
+	var items []item.Item
+	for _, b := range browsers {
+		path := filepath.Join(home, b.relPath)
+		bytes, _ := disk.DirSize(path)
+		if bytes < minCacheBytes {
+			continue
+		}
+		items = append(items, item.Item{
+			Name:       b.displayName,
+			Tool:       b.tool,
+			Path:       path,
+			Bytes:      bytes,
+			Category:   item.CategorySystem,
+			Risk:       item.RiskSafe,
+			Detail:     "caché de " + b.displayName + "; el navegador la regenera al navegar",
+			DetailKey:  "appcache.browser.detail",
+			DetailArgs: []any{b.displayName},
 		})
 	}
 	return items

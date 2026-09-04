@@ -35,23 +35,23 @@ import (
 type Subcategory string
 
 const (
-	SubInstaller        Subcategory = "installer-with-app"   // DMG/PKG; app already installed
-	SubArchiveExtracted Subcategory = "archive-extracted"    // ZIP/RAR with sibling folder
-	SubProjectFolder    Subcategory = "project-folder"       // contains node_modules / vendor / target
-	SubDBDump           Subcategory = "db-dump"              // .sql, .sql.bak, .dump
-	SubOldVideo         Subcategory = "old-video"            // mov/mp4 >90d
-	SubOldArchive       Subcategory = "old-archive"          // zip/rar/7z >90d, not extracted
-	SubLargeOther       Subcategory = "large-other"          // catch-all >100MB, listed only
+	SubInstaller        Subcategory = "installer-with-app" // DMG/PKG; app already installed
+	SubArchiveExtracted Subcategory = "archive-extracted"  // ZIP/RAR with sibling folder
+	SubProjectFolder    Subcategory = "project-folder"     // contains node_modules / vendor / target
+	SubDBDump           Subcategory = "db-dump"            // .sql, .sql.bak, .dump
+	SubOldVideo         Subcategory = "old-video"          // mov/mp4 >90d
+	SubOldArchive       Subcategory = "old-archive"        // zip/rar/7z >90d, not extracted
+	SubLargeOther       Subcategory = "large-other"        // catch-all >100MB, listed only
 )
 
 // Detail wraps an item with a subcategory and last-modified date so the
 // command UI can group and sort. It implements no behaviour — it's just
 // the carrier shape for the package's public API.
 type Detail struct {
-	Item        item.Item
-	Sub         Subcategory
-	ModTime     time.Time
-	AgeDays     int // -1 if mod time unknown
+	Item    item.Item
+	Sub     Subcategory
+	ModTime time.Time
+	AgeDays int // -1 if mod time unknown
 }
 
 // Detail thresholds. Centralised so tests can cover boundary cases.
