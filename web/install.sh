@@ -1,7 +1,11 @@
 #!/bin/sh
-# mistah installer — single script that detects the user's macOS arch,
+# mistah installer — single script that detects the user's OS/arch,
 # downloads the matching release tarball, and installs the binary into
 # /usr/local/bin (or $HOME/.local/bin if the former is not writable).
+#
+# Supports macOS (arm64, amd64) and Linux (amd64). Windows users
+# download the .zip from GitHub Releases directly — see
+# mistah.sistematlan.com and README.md.
 #
 # Usage:
 #   curl -fsSL https://mistah.sistematlan.com/install.sh | sh
@@ -11,7 +15,7 @@
 #   MISTAH_PREFIX    install location override (default: /usr/local/bin)
 #
 # Design notes:
-#   - POSIX sh, no bashisms. Runs on macOS default shell.
+#   - POSIX sh, no bashisms. Runs on macOS default shell and any Linux /bin/sh.
 #   - Fails loudly: every step exits on error (set -e + error()).
 #   - Writes only to PREFIX. Never touches the rest of the system.
 #   - No telemetry. No analytics. No phone-home. Read this file before running.
@@ -53,10 +57,11 @@ require tar
 require mkdir
 require install
 
-OS="$(uname -s)"
-case "$OS" in
-  Darwin) ;;
-  *) error "mistah currently only supports macOS. Detected: $OS" ;;
+OS_RAW="$(uname -s)"
+case "$OS_RAW" in
+  Darwin) OS="darwin" ;;
+  Linux)  OS="linux" ;;
+  *) error "mistah supports macOS and Linux. Detected: $OS_RAW (Windows users: download the .zip from https://github.com/${REPO}/releases/latest)" ;;
 esac
 
 ARCH_RAW="$(uname -m)"
@@ -65,6 +70,12 @@ case "$ARCH_RAW" in
   x86_64|amd64)  ARCH="amd64" ;;
   *) error "unsupported architecture: $ARCH_RAW" ;;
 esac
+
+# Linux arm64 isn't published yet (see .goreleaser.yaml) — fail with a
+# clear message instead of a confusing 404 further down.
+if [ "$OS" = "linux" ] && [ "$ARCH" = "arm64" ]; then
+  error "linux/arm64 is not built yet. Open an issue at https://github.com/${REPO}/issues if you need it."
+fi
 
 # ----------------------------------------------------------------------------
 # Resolve target version
@@ -84,7 +95,7 @@ fi
 # Strip leading 'v' so it matches the goreleaser archive naming.
 VERSION_NO_V="${VERSION#v}"
 
-ARCHIVE="mistah_${VERSION_NO_V}_darwin_${ARCH}.tar.gz"
+ARCHIVE="mistah_${VERSION_NO_V}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE}"
 
 # ----------------------------------------------------------------------------
@@ -143,8 +154,11 @@ $SUDO install -m 0755 "$TMP/mistah" "$PREFIX/mistah"
 # Strip the quarantine xattr that macOS adds to anything from the network,
 # so the binary runs without the Gatekeeper "is from the internet" prompt.
 # This is a one-time fix per install; it does NOT bypass code signing
-# verification — only Gatekeeper's quarantine flag.
-xattr -d com.apple.quarantine "$PREFIX/mistah" 2>/dev/null || true
+# verification — only Gatekeeper's quarantine flag. Linux has no
+# equivalent mechanism, so this step is a no-op there.
+if [ "$OS" = "darwin" ]; then
+  xattr -d com.apple.quarantine "$PREFIX/mistah" 2>/dev/null || true
+fi
 
 ok "mistah ${VERSION} installed at $PREFIX/mistah"
 

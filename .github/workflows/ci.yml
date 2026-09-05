@@ -1,12 +1,12 @@
 # CI — runs Go tests and vet on every push and pull request.
 # Fast feedback before tagging a release.
 #
-# Two jobs because mistah is multiplatform: build tags mean
-# system_windows.go, cleaner_windows.go, etc. are invisible to a macOS
+# Three jobs because mistah is multiplatform: build tags mean
+# system_windows.go, cleaner_linux.go, etc. are invisible to a macOS
 # compiler entirely (`go build`/`go vet` on macos-14 never even parses
-# them). The windows job is the only thing that actually exercises that
-# code — a macOS-only CI would let a Windows-only compile error ship
-# unnoticed until someone runs it on a real PC.
+# them). The windows/linux jobs are the only things that actually
+# exercise that code — a macOS-only CI would let a platform-specific
+# compile error ship unnoticed until someone runs it on a real machine.
 name: CI
 
 on:
@@ -59,3 +59,23 @@ jobs:
         # coverage still runs; only the race-condition sanitizer is
         # skipped for this job.
         run: go test ./...
+
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test -race ./...

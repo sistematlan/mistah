@@ -270,15 +270,81 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
       solo GitHub Releases con `.zip`; no hay `install.ps1` equivalente
       al `install.sh` de macOS.
 
-#### Soporte Linux (medio plazo, sin cambios de plan)
-- [ ] Más fácil que Windows: solo cambian paths, no APIs.
-- [ ] `~/.cache/`, `~/.config/`, `~/.local/share/` en lugar de `~/Library/*`
-- [ ] Apps desde `~/.local/share/applications/` y `/usr/share/applications/`
-- [ ] No hay `mdls` — usar `stat -c %Y` para "last modified" como proxy de uso
-- [ ] Snap, Flatpak, AppImage como sources de caches
-- [ ] **Esfuerzo estimado:** 1-2 semanas con CI Linux runner (el
-      `disk.DirSize` nativo ya no depende de `du`, así que ese
-      prerequisito específico ya está resuelto para Linux también)
+#### Soporte Linux — implementado (sept. 2026)
+
+Portado con el mismo enfoque que Windows: build tags
+(`//go:build linux`), reutilizando toda la orquestación compartida
+(`Scan`, `Plan`, `Resolver`, `item.Item`). Confirmado el análisis
+previo del backlog: fue más simple que Windows porque la mayoría de
+convenciones (XDG Base Directory, freedesktop.org) son estándares
+abiertos en lugar de APIs propietarias que hay que envolver.
+
+- [x] `internal/disk`: sin cambios — ya compartía implementación con
+      macOS vía `disk_unix.go` (`syscall.Statfs`), y `DirSize` ya era
+      portable desde el trabajo de Windows (sin `du`).
+- [x] Caches dev: `~/.cache/` (npm, pnpm→`.local/share/pnpm`, yarn, Go,
+      pip, uv, Composer, node-gyp) y JetBrains en `~/.cache/JetBrains`.
+- [x] Apps instaladas: `internal/apps` parsea archivos `.desktop`
+      (`/usr/share/applications`, `/usr/local/share/applications`,
+      `~/.local/share/applications`) — el estándar freedesktop.org,
+      equivalente al Registro de Windows. "Último uso" es una
+      heurística débil (mtime del binario referenciado en `Exec=`),
+      documentado como tal, no como precisión falsa.
+- [x] Papelera: implementada según la spec real de freedesktop.org
+      (`~/.local/share/Trash/{files,info}`) — el remover borra el par
+      `files/<name>` + `info/<name>.trashinfo` juntos; borrar solo
+      `files/` deja registros huérfanos que confunden a los gestores
+      de archivos al intentar restaurar.
+- [x] `/tmp`: detector que **solo considera archivos del UID actual**
+      (`syscall.Stat_t.Uid`) — a diferencia de `%TEMP%` en Windows,
+      `/tmp` es compartido entre todos los usuarios del sistema, así
+      que iterar sin filtrar por dueño sería un error de seguridad/
+      privacidad, no solo un bug.
+- [x] Miniaturas: `~/.cache/thumbnails` — spec de thumbnails de
+      freedesktop.org, usada por Nautilus, Dolphin, Thunar, etc.
+- [x] Browsers: Chrome, Chromium, Brave, Edge bajo `~/.config/<vendor>/
+      <product>/Default/Cache` — mismo layout que Windows, solo la raíz
+      cambia de `%LOCALAPPDATA%` a `~/.config`.
+- [x] Docker: sin cambios — CLI idéntica. El detector de huérfanos
+      apunta a `/var/lib/docker` (dato del daemon, típicamente 0700 —
+      se degrada a 0 bytes sin root en vez de fallar, igual que otros
+      detectores ante permission-denied).
+- [x] `SafeRoots`/`OffLimits`: `/tmp` + perfil de usuario; protege
+      `.ssh`/`.gnupg` explícitamente (a diferencia de macOS/Windows,
+      en Linux estas SÍ son carpetas de archivos planos dentro de
+      `$HOME`, no un almacén gestionado por el OS).
+- [x] `install.sh`: extendido para detectar `Linux` vía `uname -s` y
+      descargar el tarball correcto — funciona igual dentro de WSL,
+      donde `uname` reporta `Linux`, no `Windows` (esto es justo lo
+      que permite instalar mistah dentro de una sesión WSL con el
+      mismo one-liner que macOS, sin tocar el `.zip` de Windows).
+- [x] GoReleaser + CI (`ubuntu-latest`) agregados.
+- [x] Validado en Debian 13 (trixie) corriendo dentro de WSL2 en
+      Windows real, vía SSH: `scan`, `caches`, `clean --dry-run` y el
+      wizard interactivo completo (incluida la ruta de cancelar).
+
+Deliberadamente NO portado (mismo criterio que Windows — sin
+equivalente confiable, no simplemente "no hubo tiempo"):
+
+- [ ] **Backups de iPhone / .ipsw** — no existe un cliente oficial de
+      iTunes/Apple Devices para Linux. La alternativa de la comunidad
+      (`libimobiledevice`) deja elegir un directorio de salida arbitrario
+      por invocación, así que no hay una ruta estándar donde apuntar.
+- [ ] **Time Machine / snapshots del sistema** — btrfs/LVM snapshots
+      existen pero son gestionados por el administrador del sistema,
+      no algo que un CLI sin privilegios de root deba tocar.
+- [ ] **Mail.app / Adjuntos de iMessage** — exclusivos de Apple.
+- [ ] **Logs y crash reports genéricos** — la ubicación varía demasiado
+      entre distros/escritorios (`systemd-coredump`, `~/.cache/abrt`,
+      etc.) para hardcodear una sola ruta con confianza.
+- [ ] **Firefox** — mismo problema de nombre de perfil aleatorio que en
+      Windows (requiere leer `profiles.ini`); pendiente como mejora
+      compartida entre ambas plataformas.
+- [ ] **Empaquetado nativo** (.deb, .rpm, AUR, Snap, Flatpak) — por
+      ahora solo tarball vía GitHub Releases + `install.sh`.
+- [ ] **Linux arm64** — sin publicar todavía (Raspberry Pi, servidores
+      ARM); el propio `install.sh` falla explícitamente en esa combinación
+      en vez de intentar descargar un artefacto que no existe.
 
 ### Métricas de salud
 
@@ -311,7 +377,7 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
 - **UX de confirmación**: ítem por ítem con `[s/N/v/q]`, default seguro en NO
 - **Docker**: `system prune -f` (sin `--volumes`); volumes solo con flag explícito futuro `--include-volumes`
 - **SafeRoots**: `$HOME`/perfil de usuario + directorio temporal del sistema (`/var/folders`, `/tmp`, `/private/*` en macOS; `os.TempDir()` en Windows). Cualquier otro path es rechazado.
-- **Multiplataforma**: macOS + Windows soportados (ver "Soporte Windows" abajo, implementado en sesión de sept. 2026). Linux sigue pendiente.
+- **Multiplataforma**: macOS + Windows + Linux soportados (ver "Multiplataforma — análisis técnico" arriba, ambos implementados en sesión de sept. 2026).
 - **Cobertura objetivo v0.1.0**: caches dev + orphans básicos + downloads. P0 de Application Support (Electron, iOS Simulator, Time Machine, Mail, Messages) queda para v0.2.0.
 
 ### Democratización (sesión 4 backlog)

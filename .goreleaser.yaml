@@ -1,8 +1,9 @@
 # goreleaser config — produces signed darwin-arm64 + darwin-amd64 +
-# windows-amd64 binaries on every git tag matching v*. Drives
-# `curl mistah.sistematlan.com/install.sh | sh` end-to-end for macOS;
-# Windows users download the .zip from GitHub Releases directly (see
-# BACKLOG.md for the winget/scoop packaging follow-up).
+# windows-amd64 + linux-amd64 binaries on every git tag matching v*.
+# Drives `curl mistah.sistematlan.com/install.sh | sh` end-to-end for
+# macOS and Linux; Windows users download the .zip from GitHub
+# Releases directly (see BACKLOG.md for the winget/scoop packaging
+# follow-up).
 #
 # Apple notarization is NOT enabled yet (requires paid Developer ID).
 # Users can bypass Gatekeeper one-time with `xattr -d com.apple.quarantine`
@@ -31,6 +32,7 @@ builds:
     goos:
       - darwin
       - windows
+      - linux
     goarch:
       - amd64
       - arm64
@@ -39,6 +41,12 @@ builds:
       # (Surface Pro X and similar); skip it until someone asks rather
       # than shipping an untested cross-compile target.
       - goos: windows
+        goarch: arm64
+      # Linux arm64 (Raspberry Pi, AWS Graviton, etc.) is a real
+      # audience too, but install.sh doesn't offer it yet either —
+      # adding both together once there's a request avoids shipping an
+      # artifact nobody can actually reach via the one-liner installer.
+      - goos: linux
         goarch: arm64
     # ldflags trim debug paths and embed version metadata so `mistah --version`
     # (when we add it) reflects the tag.
