@@ -403,6 +403,47 @@
   }
   .install-box .copy-btn:hover { background: var(--accent-2); color: var(--ink); }
 
+  /* Hero install snippet — compact variant of .install-box so the
+     "curl | sh" command is visible without scrolling past the fold,
+     following the Homebrew/rustup pattern of putting the install
+     command in the first viewport. Reuses .install-box's pre/copy-btn
+     child selectors (prompt-bg, accent-bg, copy-btn) so the color
+     coding stays identical between this and the full #install section. */
+  .hero-install {
+    background: var(--ink);
+    border: 3px solid var(--ink);
+    padding: 16px 20px;
+    box-shadow: 6px 6px 0 var(--accent-2);
+    margin-top: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .hero-install pre {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: var(--canvas);
+    overflow-x: auto;
+    margin: 0;
+  }
+  .hero-install pre .prompt-bg { color: var(--jade); }
+  .hero-install pre .accent-bg { color: var(--accent-2); }
+  .hero-install .copy-btn {
+    background: var(--accent);
+    color: var(--canvas);
+    border: none;
+    padding: 6px 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .hero-install .copy-btn:hover { background: var(--accent-2); color: var(--ink); }
+
   /* Etymology */
   .etymology {
     background: var(--ink);
@@ -460,6 +501,8 @@
     .levels .level { margin-right: 0; margin-bottom: -3px; }
     .features { grid-template-columns: 1fr; }
     .etymology { grid-template-columns: 1fr; gap: 24px; padding: 32px; }
+    .hero-install { flex-direction: column; align-items: stretch; }
+    .hero-install pre { font-size: 12px; white-space: pre-wrap; word-break: break-all; }
   }
 </style>
 </head>
@@ -493,6 +536,10 @@
     <div class="ctas">
       <a href="#install" class="btn btn-primary">INSTALAR ↓</a>
       <a href="https://github.com/sistematlan/mistah" class="btn btn-ghost">VER CÓDIGO →</a>
+    </div>
+    <div class="hero-install">
+      <pre><span class="prompt-bg">$</span> curl -fsSL <span class="accent-bg">mistah.sistematlan.com/install.sh</span> | sh</pre>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('curl -fsSL mistah.sistematlan.com/install.sh | sh'); this.textContent='COPIADO ✓'; setTimeout(() => this.textContent='COPIAR', 2000)">COPIAR</button>
     </div>
   </div>
 
@@ -671,23 +718,23 @@
     </div>
     <div class="feature">
       <span class="num">02</span>
+      <h3>Nunca toca tus contraseñas ni sesiones</h3>
+      <p>Solo borra la <em>caché</em> de tus navegadores — nunca las carpetas donde viven contraseñas guardadas o cookies. Sigues logueado en todo después de limpiar. Está en <span class="mono-inline">internal/appcache/</span>, con un test que falla si alguien rompe esa regla.</p>
+    </div>
+    <div class="feature">
+      <span class="num">03</span>
       <h3>Confirmación explícita</h3>
       <p>mistah te muestra exactamente qué va a borrar antes de tocar nada. Cancela cuando quieras con <span class="mono-inline">q</span>.</p>
     </div>
     <div class="feature">
-      <span class="num">03</span>
+      <span class="num">04</span>
       <h3>Modo desarrollador</h3>
       <p>Quieres control granular ítem por ítem? <span class="mono-inline">mistah clean</span> lo hace. JSON, dry-run, todo.</p>
     </div>
     <div class="feature">
-      <span class="num">04</span>
+      <span class="num">05</span>
       <h3>Bilingüe nativo</h3>
       <p>Detecta tu locale automáticamente. es / en sin configuración. Sin dependencias. Sin internet.</p>
-    </div>
-    <div class="feature feature-wide">
-      <span class="num">05</span>
-      <h3>Nunca toca tus contraseñas ni sesiones</h3>
-      <p>mistah solo borra la <em>caché</em> de tus navegadores (Chrome, Edge, Brave, Firefox) — nunca las carpetas donde viven contraseñas guardadas, cookies o el estado de tus sesiones iniciadas. Después de limpiar, sigues logueado en todo. Míralo tú mismo: la disciplina de rutas está en <span class="mono-inline">internal/appcache/</span>, con un test que falla si alguien intenta agregar una ruta que toque datos de perfil.</p>
     </div>
   </div>
 </section>

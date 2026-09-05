@@ -13,12 +13,18 @@
 # Optional environment variables:
 #   MISTAH_VERSION   pin to a specific release (default: latest)
 #   MISTAH_PREFIX    install location override (default: /usr/local/bin)
+#   MISTAH_YES       skip the confirmation prompt (for CI/non-interactive use)
 #
 # Design notes:
 #   - POSIX sh, no bashisms. Runs on macOS default shell and any Linux /bin/sh.
 #   - Fails loudly: every step exits on error (set -e + error()).
 #   - Writes only to PREFIX. Never touches the rest of the system.
 #   - No telemetry. No analytics. No phone-home. Read this file before running.
+#   - Explains exactly what it's about to do, then PAUSES for confirmation
+#     before touching disk or requesting sudo — same pattern Homebrew's
+#     installer uses. When run via `curl | sh`, stdin is occupied by the
+#     script itself, so the confirmation prompt reads from /dev/tty
+#     directly rather than $0's stdin (see confirm() below).
 
 set -e
 
@@ -45,6 +51,39 @@ error() { printf "%s %s\n" "$(color "1;31" "✗")" "$1" >&2; exit 1; }
 
 require() {
   command -v "$1" >/dev/null 2>&1 || error "missing required tool: $1"
+}
+
+# confirm PROMPT — asks the user to press enter/y before proceeding.
+#
+# Reads from /dev/tty instead of stdin because this script is almost
+# always invoked as `curl ... | sh`, where stdin is the pipe carrying
+# the script's own source — there is no keyboard input to read there.
+# /dev/tty bypasses the pipe and talks to the actual terminal, which is
+# exactly how Homebrew's installer supports "explain then pause" under
+# the same curl|sh invocation.
+#
+# If there is no controlling terminal at all (CI runners, some Docker
+# build contexts, MISTAH_YES=1), there is nothing to prompt — proceed
+# automatically rather than hanging forever waiting for input that can
+# never arrive.
+#
+# Detecting "no controlling terminal" needs an actual open attempt, not
+# just `test -r /dev/tty`: the device node can exist and pass a
+# permission check while still having no controlling session behind it
+# (true in most container/CI sandboxes), which raises "Device not
+# configured" only once something tries to actually read from it.
+confirm() {
+  if [ -n "$MISTAH_YES" ]; then
+    return 0
+  fi
+  if ! REPLY="$( (exec < /dev/tty && printf "%s [y/N] " "$1" >/dev/tty && read -r line && printf "%s" "$line") 2>/dev/null )"; then
+    warn "no interactive terminal detected; proceeding without confirmation (set MISTAH_YES=1 to silence this)"
+    return 0
+  fi
+  case "$REPLY" in
+    y|Y|yes|YES) return 0 ;;
+    *) error "aborted by user" ;;
+  esac
 }
 
 # ----------------------------------------------------------------------------
@@ -103,25 +142,52 @@ URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE}"
 # ----------------------------------------------------------------------------
 
 PREFIX="${MISTAH_PREFIX:-$DEFAULT_PREFIX}"
+NEEDS_SUDO=0
 SUDO=""
 
 if [ ! -d "$PREFIX" ]; then
-  warn "$PREFIX does not exist; will create"
   if ! mkdir -p "$PREFIX" 2>/dev/null; then
-    SUDO="sudo"
-    info "elevating to create $PREFIX"
-    sudo mkdir -p "$PREFIX"
+    NEEDS_SUDO=1
+  else
+    rmdir "$PREFIX" 2>/dev/null || true  # undo the probe; the real mkdir happens after confirmation
   fi
-fi
-
-if [ ! -w "$PREFIX" ]; then
+elif [ ! -w "$PREFIX" ]; then
   if [ "$PREFIX" = "$DEFAULT_PREFIX" ]; then
-    SUDO="sudo"
-    info "$PREFIX requires sudo; will prompt for password"
+    NEEDS_SUDO=1
   else
     error "$PREFIX is not writable"
   fi
 fi
+
+# ----------------------------------------------------------------------------
+# Explain the plan, then pause for confirmation — nothing above this
+# point touched disk or ran sudo. Everything below this point does.
+# ----------------------------------------------------------------------------
+
+printf "\n"
+info "mistah will:"
+printf "    1. Download %s\n" "$(color 1 "$ARCHIVE")"
+printf "       from %s\n" "$URL"
+printf "    2. Verify the archive is a valid, non-empty tarball\n"
+if [ "$NEEDS_SUDO" -eq 1 ]; then
+  printf "    3. Install the %s binary to %s %s\n" \
+    "$(color 1 "mistah")" "$(color 1 "$PREFIX/mistah")" "$(color "1;33" "(requires sudo)")"
+else
+  printf "    3. Install the %s binary to %s\n" "$(color 1 "mistah")" "$(color 1 "$PREFIX/mistah")"
+fi
+printf "\n"
+printf "  No other files are touched. No telemetry is sent. Read this\n"
+printf "  script yourself first if you'd rather not take our word for it:\n"
+printf "    %s\n\n" "$(color 1 "https://mistah.sistematlan.com/install.sh")"
+
+confirm "Proceed with installation?"
+
+if [ "$NEEDS_SUDO" -eq 1 ]; then
+  SUDO="sudo"
+  info "requesting sudo to write to $PREFIX"
+fi
+
+mkdir -p "$PREFIX" 2>/dev/null || $SUDO mkdir -p "$PREFIX"
 
 # ----------------------------------------------------------------------------
 # Download and install

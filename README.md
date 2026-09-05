@@ -31,6 +31,19 @@ instala el binario Linux normal, no el `.exe` de Windows.
 Linux `arm64` (Raspberry Pi, servidores ARM) todavía no se publica —
 abre un issue si lo necesitas.
 
+### Con Go (cualquier plataforma)
+
+Si ya tienes Go 1.26+ instalado, esta es la forma más directa —
+descarga, compila y coloca el binario en `$(go env GOPATH)/bin` sin
+pasar por `curl | sh` ni por GitHub Releases:
+
+```sh
+go install github.com/sistematlan/mistah@latest
+```
+
+Cambia `@latest` por un tag (`@v0.5.0`) para fijar una versión
+específica. `mistah version` te confirma qué compilaste.
+
 ### Windows
 
 Descarga `mistah_<versión>_windows_amd64.zip` desde
