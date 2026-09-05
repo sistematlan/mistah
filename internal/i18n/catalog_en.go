@@ -233,7 +233,7 @@ var english = map[string]string{
 	"cleaner.user-declined":    "user declined",
 
 	// ---- Wizard ----
-	"wizard.tagline":             "Clean up your Mac, the open-source way.",
+	"wizard.tagline":             "Clean up your computer, the open-source way.",
 	"wizard.scanning":            "Scanning your disk...",
 	"wizard.menu.header":         "What kind of cleanup would you like?",
 	"wizard.menu.prompt":         "Choice [1-4]: ",

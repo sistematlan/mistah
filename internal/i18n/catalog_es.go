@@ -219,7 +219,7 @@ var spanish = map[string]string{
 	"cleaner.user-declined":    "el usuario declinó",
 
 	// ---- Wizard ----
-	"wizard.tagline":             "Limpia tu Mac, al estilo open-source.",
+	"wizard.tagline":             "Limpia tu equipo, al estilo open-source.",
 	"wizard.scanning":            "Escaneando tu disco...",
 	"wizard.menu.header":         "¿Qué tipo de limpieza quieres hacer?",
 	"wizard.menu.prompt":         "Opción [1-4]: ",

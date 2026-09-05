@@ -338,6 +338,8 @@
     gap: 24px;
     margin-top: 32px;
   }
+  .feature-wide { grid-column: 1 / -1; }
+  .feature-wide em { font-style: normal; background: var(--accent-2); padding: 0 4px; }
   .feature {
     background: var(--canvas);
     color: var(--ink);
@@ -483,7 +485,7 @@
       <span class="stripe">mistah</span> lo barre.
     </h1>
     <p class="lede">
-      Recupera los gigabytes que tu Mac acumula con el tiempo —
+      Recupera los gigabytes que tu equipo acumula con el tiempo —
       papelera, backups viejos de iPhone, cachés de apps, snapshots,
       adjuntos de Mail y más. <strong>Cero telemetría.</strong>
       Código auditable. Gratis para siempre.
@@ -598,19 +600,19 @@
       <span class="badge">01 · LIGHT</span>
       <h4>Ligera</h4>
       <div class="size">~5 GB</div>
-      <p>Lo que toda Mac acumula: cachés de apps (Spotify, Slack, navegadores), papelera, miniaturas, adjuntos de Mail. Sin sorpresas.</p>
+      <p>Lo que todo equipo acumula: cachés de apps (Spotify, Slack, navegadores), papelera/Recycle Bin, miniaturas, adjuntos de Mail (macOS). Sin sorpresas.</p>
     </div>
     <div class="level">
       <span class="badge">02 · STANDARD</span>
       <h4>Estándar</h4>
       <div class="size">~20 GB</div>
-      <p>Lo anterior + snapshots de Time Machine, logs, reportes de fallos. Si eres dev, también Docker, Xcode y JetBrains.</p>
+      <p>Lo anterior + snapshots de Time Machine (macOS), logs, reportes de fallos. Si eres dev, también Docker, JetBrains y Xcode (macOS).</p>
     </div>
     <div class="level">
       <span class="badge">03 · DEEP</span>
       <h4>Profunda</h4>
       <div class="size">~50 GB</div>
-      <p>Todo + backups viejos de iPhone, datos huérfanos y candidatos en Downloads. Te pregunta por cada archivo que pueda ser tuyo.</p>
+      <p>Todo + backups viejos de iPhone (macOS/Windows), datos huérfanos y candidatos en Downloads. Te pregunta por cada archivo que pueda ser tuyo.</p>
     </div>
   </div>
 </section>
@@ -631,7 +633,7 @@
         <br/>
         <div class="dim">  mistah</div>
         <div class="dim">  ───────</div>
-        <div class="dim">  Limpia tu Mac, al estilo open-source.</div>
+        <div class="dim">  Limpia tu equipo, al estilo open-source.</div>
         <br/>
         <div class="dim"><span class="highlight">⠋</span> Escaneando tu disco...</div>
         <div>¿Qué tipo de limpieza quieres hacer?</div>
@@ -681,6 +683,11 @@
       <span class="num">04</span>
       <h3>Bilingüe nativo</h3>
       <p>Detecta tu locale automáticamente. es / en sin configuración. Sin dependencias. Sin internet.</p>
+    </div>
+    <div class="feature feature-wide">
+      <span class="num">05</span>
+      <h3>Nunca toca tus contraseñas ni sesiones</h3>
+      <p>mistah solo borra la <em>caché</em> de tus navegadores (Chrome, Edge, Brave, Firefox) — nunca las carpetas donde viven contraseñas guardadas, cookies o el estado de tus sesiones iniciadas. Después de limpiar, sigues logueado en todo. Míralo tú mismo: la disciplina de rutas está en <span class="mono-inline">internal/appcache/</span>, con un test que falla si alguien intenta agregar una ruta que toque datos de perfil.</p>
     </div>
   </div>
 </section>
