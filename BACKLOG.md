@@ -274,7 +274,33 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
       documentado (Apple notarization) — costo de Developer ID, no
       técnico.
 
+#### Distribución — Scoop (implementado sept. 2026)
 
+- [x] Repo `sistematlan/scoop-bucket` creado como bucket oficial —
+      mismo modelo que Homebrew (repo git propio con manifiestos,
+      sin submission/review central), por eso se priorizó antes de
+      winget en la hoja de ruta.
+- [x] `.goreleaser.yaml`: sección `scoops` (nombre en plural, distinto
+      de `homebrew_casks`) apuntando al `.zip` de `windows_amd64` que
+      ya se generaba para la descarga manual — sin build step nuevo.
+- [x] PAT fine-grained (`SCOOP_BUCKET_GITHUB_TOKEN`, scope `Contents:
+      Read and write` sobre `scoop-bucket` únicamente) como secret en
+      `sistematlan/mistah`, mismo patrón que `HOMEBREW_TAP_GITHUB_TOKEN`.
+- [x] Validado con snapshot local: el manifest JSON generado apunta
+      correctamente al `.zip` con `mistah.exe` y trae el hash SHA256
+      correcto.
+- [x] Release real (v0.6.1) publicó el manifest en el bucket con
+      versión y hash reales.
+- [ ] Pendiente: probar `scoop install mistah` en una máquina Windows
+      real (no se pudo completar en esta sesión — la máquina Windows
+      usada para las pruebas de Homebrew/soporte Windows no estaba
+      accesible en el momento). El manifest sigue el formato exacto
+      que GoReleaser produce para cientos de otros proyectos, así que
+      el riesgo de que falle es bajo, pero queda como verificación
+      pendiente antes de considerar esta vía 100% confirmada end-to-end
+      (a diferencia de Homebrew, que sí se probó en vivo).
+
+#### Soporte Windows — deliberadamente NO portado (sin equivalente razonable)
 
 - [ ] **Time Machine snapshots** (`tmutil`) — VSS/Volume Shadow Copy es
       el concepto más cercano en Windows, pero requiere `vssadmin` con
@@ -298,9 +324,10 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
       SmartScreen mostrará "editor desconocido". Requiere certificado de
       firma de código (costo anual), análogo al Apple Developer ID que
       tampoco se ha comprado todavía para macOS.
-- [ ] **Distribución nativa** (winget, Scoop, Chocolatey) — por ahora
-      solo GitHub Releases con `.zip`; no hay `install.ps1` equivalente
-      al `install.sh` de macOS.
+- [x] **Distribución nativa — Scoop**: implementada (ver "Distribución
+      — Scoop" abajo). `winget` (repo central de Microsoft, requiere
+      PR + revisión) y `Chocolatey` siguen pendientes; no hay
+      `install.ps1` equivalente al `install.sh` de macOS/Linux tampoco.
 
 #### Soporte Linux — implementado (sept. 2026)
 

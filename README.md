@@ -67,7 +67,18 @@ go install github.com/sistematlan/mistah@latest
 Cambia `@latest` por un tag (`@v0.5.0`) para fijar una versión
 específica. `mistah version` te confirma qué compilaste.
 
-### Windows
+### Windows — Scoop (recomendado)
+
+```powershell
+scoop bucket add sistematlan https://github.com/sistematlan/scoop-bucket
+scoop install mistah
+```
+
+El bucket (`sistematlan/scoop-bucket`) se actualiza automáticamente en
+cada release, así que `scoop update mistah` siempre te deja en la
+última versión.
+
+### Windows — descarga manual
 
 Descarga `mistah_<versión>_windows_amd64.zip` desde
 [GitHub Releases](https://github.com/sistematlan/mistah/releases),
@@ -75,13 +86,12 @@ extrae `mistah.exe` y colócalo donde prefieras (o en una carpeta que
 esté en tu `PATH`, ej. `C:\Windows` o una carpeta propia agregada al
 PATH del sistema).
 
-No hay instalador ni script de una línea todavía — es un binario suelto,
-sin firma de código (verás el aviso de SmartScreen "editor desconocido"
+Sin firma de código (verás el aviso de SmartScreen "editor desconocido"
 la primera vez; puedes revisar el código fuente antes de confiar en él).
 
 > **¿Usas WSL?** Ese es un entorno Linux dentro de Windows — usa el
 > instalador de macOS/Linux de arriba (`curl ... | sh`) dentro de la
-> terminal de WSL, no el `.zip` de Windows. El `.zip` es para
+> terminal de WSL, no el `.zip`/Scoop de Windows. Esos dos son para
 > PowerShell/cmd.exe nativo.
 
 ## Uso rápido
