@@ -160,3 +160,37 @@ homebrew_casks:
           if OS.mac?
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mistah"]
           end
+
+# scoops publishes/updates a Scoop manifest in the sistematlan/scoop-bucket
+# repo on every release, so:
+#
+#   scoop bucket add sistematlan https://github.com/sistematlan/scoop-bucket
+#   scoop install mistah
+#
+# always installs the version that was just tagged. Scoop (unlike
+# winget) uses a self-hosted bucket model identical in spirit to
+# Homebrew's tap — no central registry, no submission/review process,
+# full control over publishing cadence. That's why this went in ahead
+# of winget in the distribution roadmap (see BACKLOG.md): winget
+# requires a PR to microsoft/winget-pkgs per release, validated by an
+# automated bot and, on first submission, a human moderator; Scoop and
+# Homebrew are both "push to our own repo" with zero external gatekeeping.
+#
+# GoReleaser pulls the windows_amd64 archive it already built above
+# (the .zip with mistah.exe, same one used by the "download the .zip"
+# path in README.md) — no separate build step needed here.
+#
+# Requires the same class of PAT as the Homebrew cask: fine-grained,
+# Contents: Read and write, scoped only to sistematlan/scoop-bucket,
+# stored as the SCOOP_BUCKET_GITHUB_TOKEN repo secret.
+scoops:
+  - name: mistah
+    repository:
+      owner: sistematlan
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: "https://mistah.sistematlan.com"
+    description: "CLI open-source que recupera espacio en disco: cachés, papelera, backups viejos y más. Sin telemetría, código auditable."
+    license: MIT
+    commit_msg_template: "scoop manifest update for {{ .ProjectName }} version {{ .Tag }}"

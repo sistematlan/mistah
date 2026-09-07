@@ -51,3 +51,7 @@ jobs:
           # see .goreleaser.yaml's homebrew_casks section for how this
           # gets used.
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # Same pattern as above, for the Scoop bucket
+          # (sistematlan/scoop-bucket) — see .goreleaser.yaml's scoops
+          # section.
+          SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}
