@@ -13,7 +13,30 @@ telemetría. Código auditable. MIT.
 
 ## Instalación
 
-### macOS y Linux
+### macOS — Homebrew (recomendado)
+
+```sh
+brew tap sistematlan/tools
+brew install mistah
+```
+
+El tap (`sistematlan/homebrew-tools`) se actualiza automáticamente en
+cada release, así que `brew upgrade mistah` siempre te deja en la
+última versión.
+
+Como es un tap de terceros (no `homebrew/cask` oficial), Homebrew te
+pedirá confiar en él la primera vez:
+
+```sh
+brew trust sistematlan/tools
+```
+
+Lee la [fórmula del cask](https://github.com/sistematlan/homebrew-tools/blob/main/Casks/mistah.rb)
+antes de confiar si quieres verificar qué hace exactamente (solo
+descarga el binario y quita el flag de cuarentena de macOS — el mismo
+paso que `install.sh` hace para el flujo `curl | sh`).
+
+### macOS y Linux — curl | sh
 
 ```sh
 curl -fsSL https://mistah.sistematlan.com/install.sh | sh

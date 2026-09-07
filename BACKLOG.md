@@ -165,7 +165,8 @@
 - [ ] CODE_OF_CONDUCT.md
 - [ ] GitHub Actions: `go test`, `go vet`, `staticcheck`, `golangci-lint`
 - [ ] goreleaser config para multi-arch (amd64, arm64)
-- [ ] Homebrew tap: `sistematlan/tools`
+- [x] Homebrew tap: `sistematlan/tools` (implementado sept. 2026, ver
+      "Distribución — Homebrew" abajo)
 - [ ] Issue templates (bug, feature, new-detector)
 - [ ] PR template
 - [ ] Sitio mínimo en GitHub Pages o Vercel (landing + docs)
@@ -242,7 +243,38 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
 - [x] Validado en máquina Windows 11 real (no solo cross-compile): scan,
       caches, clean --dry-run y clean --yes probados end-to-end vía SSH.
 
-#### Soporte Windows — deliberadamente NO portado (sin equivalente razonable)
+#### Distribución — Homebrew (implementado sept. 2026)
+
+- [x] Repo `sistematlan/homebrew-tools` creado como tap oficial.
+- [x] `.goreleaser.yaml`: sección `homebrew_casks` (NO `brews` — esa
+      sección está deprecada por GoReleaser desde v2.10 en favor de
+      casks para distribuir binarios precompilados; `brews` ahora es
+      solo para fórmulas que compilan desde source). Genera y publica
+      el cask automáticamente en cada tag `v*`.
+- [x] PAT fine-grained (`HOMEBREW_TAP_GITHUB_TOKEN`, scoped únicamente
+      a `Contents: Read and write` sobre `homebrew-tools`) como secret
+      en `sistematlan/mistah`, separado del `GITHUB_TOKEN` por defecto
+      que solo tiene permisos sobre el propio repo.
+- [x] Hook `postflight` con el mismo fix de `xattr -d
+      com.apple.quarantine` que `install.sh` ya aplicaba — sin firma
+      de código/notarización, Gatekeeper bloquearía el binario en el
+      primer lanzamiento si no se retira ese flag.
+- [x] Casks son un mecanismo exclusivo de macOS (Linuxbrew no los
+      soporta, solo fórmulas) — GoReleaser genera de cualquier modo un
+      bloque `on_linux` en el `.rb`, así que linuxbrew queda cubierto
+      "gratis" sin haberlo pedido explícitamente. Linux sigue teniendo
+      `install.sh`/`go install` como vía principal recomendada.
+- [x] Validado end-to-end en máquina real: `brew tap sistematlan/tools`
+      → `brew trust sistematlan/tools` (paso extra necesario porque es
+      un tap de terceros, no `homebrew/cask` oficial — Homebrew lo
+      exige por defecto) → `brew install mistah` → `mistah version`
+      confirma versión/commit/fecha correctos.
+- [ ] Sigue pendiente: firma de código real eliminaría el paso de
+      `brew trust` y el hook de `xattr`, mismo gap que macOS ya tenía
+      documentado (Apple notarization) — costo de Developer ID, no
+      técnico.
+
+
 
 - [ ] **Time Machine snapshots** (`tmutil`) — VSS/Volume Shadow Copy es
       el concepto más cercano en Windows, pero requiere `vssadmin` con
@@ -357,8 +389,8 @@ equivalente confiable, no simplemente "no hubo tiempo"):
 ## 🐛 Deuda técnica conocida
 
 - [ ] `cmd/orphans.go` y `cmd/scan.go` tienen escapes `\u00xx` literales — no afectan output (las strings con comillas dobles se procesan correctamente) pero quedan feos en el código fuente. Reemplazar por caracteres directos.
-- [ ] `disk.DirSize` usa `du -sk` (subprocess). Para detectores que se llaman muchas veces (JetBrains versions) sumar latencia. Considerar implementación nativa con `filepath.Walk`.
-- [ ] `caches.Scan()` llama a `du` secuencialmente. Paralelizar con goroutines + `errgroup` (gain ~3-5x).
+- [x] `disk.DirSize` — ~~usa `du -sk` (subprocess)~~ reescrito con `filepath.WalkDir` nativo durante el port a Windows (sept. 2026); ya no hay subproceso ni dependencia de `du`, y esto benefició a las 3 plataformas por igual.
+- [ ] `caches.Scan()` recorre cada cache path secuencialmente. Paralelizar con goroutines + `errgroup` (gain ~3-5x) — el reemplazo de `du` no resolvió esto, sigue siendo E/S secuencial, solo ya no paga el costo de spawnear un proceso por llamada.
 - [ ] No hay manejo de errores diferenciado: si un detector falla, podría dejar la lista vacía. Cada detector debería retornar `(items, []error)` y `Scan()` agregar errores como warnings.
 - [ ] Tests no cubren `Scan()` real (solo helpers); son frágiles ante cambios de paths del sistema. Considerar inyección de filesystem (afero o similar) para mockear.
 - [ ] `cmd/scan.go` y `cmd/caches.go` duplican lógica de ordenado por `Bytes`. Mover a `internal/item`.
@@ -369,7 +401,7 @@ equivalente confiable, no simplemente "no hubo tiempo"):
 
 - **Licencia**: MIT (a confirmar al hacer LICENSE)
 - **Lenguaje**: Go 1.26
-- **Distribución primaria**: Homebrew tap `sistematlan/tools`
+- **Distribución primaria**: Homebrew tap `sistematlan/tools` (implementado sept. 2026) + `install.sh`/`go install` para Linux
 - **CLI framework**: cobra
 - **Telemetría**: cero, jamás
 - **Modelo comercial**: pure OSS por ahora; sponsorship + consulting como vías futuras
