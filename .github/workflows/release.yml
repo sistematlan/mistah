@@ -44,3 +44,10 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Separate PAT (fine-grained, Contents: Read and write, scoped
+          # only to sistematlan/homebrew-tools) so the Homebrew cask
+          # update can push to that repo. The default GITHUB_TOKEN above
+          # is scoped to sistematlan/mistah only and can't write there —
+          # see .goreleaser.yaml's homebrew_casks section for how this
+          # gets used.
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

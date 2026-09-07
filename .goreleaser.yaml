@@ -113,3 +113,50 @@ release:
   footer: |
     ---
     🌐 https://mistah.sistematlan.com · 🐙 https://github.com/sistematlan/mistah
+
+# homebrew_casks publishes/updates a Homebrew cask in the
+# sistematlan/tools tap on every release, so `brew install
+# sistematlan/tools/mistah` (or `brew tap sistematlan/tools && brew
+# install mistah`) always points at the version that was just tagged.
+#
+# Casks are a macOS-only Homebrew concept — Linuxbrew has no cask
+# support at all, only formulas. That's fine here: Linux users are
+# already steered to install.sh/go install in README.md, and the old
+# `brews:` (formula) section this replaces never targeted Linux either
+# (GoReleaser only pulled in the darwin archives). We use casks instead
+# of the classic `brews:` formula section because GoReleaser deprecated
+# `brews` for exactly this use case (installing a prebuilt binary, not
+# building from source) — see goreleaser.com/deprecations#brews.
+#
+# Requires a PAT (not the default GITHUB_TOKEN) with write access to
+# sistematlan/homebrew-tools, stored as the HOMEBREW_TAP_GITHUB_TOKEN
+# repo secret and passed via the release workflow env — see
+# .github/workflows/release.yml.
+homebrew_casks:
+  - name: mistah
+    repository:
+      owner: sistematlan
+      name: homebrew-tools
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    binaries:
+      - mistah
+    homepage: "https://mistah.sistematlan.com"
+    description: "CLI open-source que recupera espacio en disco: cachés, papelera, backups viejos y más. Sin telemetría, código auditable."
+    commit_author:
+      name: goreleaserbot
+      email: bot@sistematlan.com
+    commit_msg_template: "brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    # mistah's darwin archives aren't code-signed/notarized (see the
+    # header comment at the top of this file), so macOS Gatekeeper
+    # quarantines the binary on first extraction. This hook strips
+    # that quarantine flag post-install — the exact same fix
+    # install.sh already applies for the curl|sh path — so `brew
+    # install` users don't hit a Gatekeeper block that curl|sh users
+    # never see.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mistah"]
+          end
