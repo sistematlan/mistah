@@ -54,6 +54,27 @@ instala el binario Linux normal, no el `.exe` de Windows.
 Linux `arm64` (Raspberry Pi, servidores ARM) todavía no se publica —
 abre un issue si lo necesitas.
 
+### Linux — paquete nativo (.deb / .rpm)
+
+Cada release incluye paquetes `.deb` (Debian/Ubuntu) y `.rpm`
+(Fedora/RHEL/openSUSE) como asset directo — sin repo APT/YUM propio
+todavía, así que no hay `apt install mistah` desde un repositorio de
+terceros. Descarga el archivo correspondiente desde la
+[última release](https://github.com/sistematlan/mistah/releases/latest)
+e instala:
+
+```sh
+# Debian / Ubuntu
+sudo dpkg -i mistah_<versión>_amd64.deb
+
+# Fedora / RHEL / openSUSE
+sudo rpm -i mistah-<versión>-1.x86_64.rpm
+```
+
+Ninguno de los dos está firmado con GPG — mismo modelo de confianza
+que el `.tar.gz`/`.zip` sin firma que ya se documenta arriba: revisa
+el código, confía, e instala explícitamente.
+
 ### Con Go (cualquier plataforma)
 
 Si ya tienes Go 1.26+ instalado, esta es la forma más directa —

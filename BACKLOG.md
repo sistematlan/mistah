@@ -300,6 +300,30 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
       pendiente antes de considerar esta vía 100% confirmada end-to-end
       (a diferencia de Homebrew, que sí se probó en vivo).
 
+#### Distribución — AUR (Arch Linux): pendiente, bloqueado en un paso manual
+
+- [ ] Investigado sept. 2026, no implementado. AUR es estructuralmente
+      distinto a Homebrew/Scoop: no permite paquetes binarios directos
+      (solo `PKGBUILD`s, que idealmente compilan desde source; para
+      binarios precompilados existe la convención `-bin`, es decir
+      publicaríamos `mistah-bin`), usa git+ssh directo a
+      `aur.archlinux.org` (no GitHub), y requiere generar `.SRCINFO`
+      con `makepkg --printsrcinfo`, herramienta exclusiva de Arch
+      Linux (validable vía contenedor Docker `archlinux`, sin problema
+      técnico ahí).
+- [ ] El bloqueo real: hace falta una **cuenta humana** en
+      `aur.archlinux.org` (registro con email + verificación) — no se
+      puede crear vía API ni automatizar. Sin esa cuenta no hay llave
+      SSH que autorizar ni PKGBUILD que publicar. Pendiente de que
+      alguien con acceso a `hola@sistematlan.com` la cree.
+- [ ] Una vez exista la cuenta: generar PKGBUILD (probablemente vía un
+      contenedor `archlinux:latest` con `base-devel` instalado),
+      configurar la llave SSH del bot en el perfil de esa cuenta, y
+      automatizar el `git push` a `ssh://aur@aur.archlinux.org/mistah-bin.git`
+      desde el workflow de release (no hay soporte nativo de
+      GoReleaser para AUR — sería un paso custom en release.yml, no
+      una sección de `.goreleaser.yaml`).
+
 #### Soporte Windows — deliberadamente NO portado (sin equivalente razonable)
 
 - [ ] **Time Machine snapshots** (`tmutil`) — VSS/Volume Shadow Copy es
@@ -399,11 +423,41 @@ equivalente confiable, no simplemente "no hubo tiempo"):
 - [ ] **Firefox** — mismo problema de nombre de perfil aleatorio que en
       Windows (requiere leer `profiles.ini`); pendiente como mejora
       compartida entre ambas plataformas.
-- [ ] **Empaquetado nativo** (.deb, .rpm, AUR, Snap, Flatpak) — por
-      ahora solo tarball vía GitHub Releases + `install.sh`.
+- [x] **Empaquetado nativo — .deb / .rpm**: implementado sept. 2026
+      vía `nfpms` en GoReleaser, publicados como asset directo en cada
+      GitHub Release (sin repo APT/YUM propio, sin firma GPG todavía —
+      ver "Distribución — .deb/.rpm" abajo). AUR, Snap, y Flatpak
+      siguen pendientes.
 - [ ] **Linux arm64** — sin publicar todavía (Raspberry Pi, servidores
       ARM); el propio `install.sh` falla explícitamente en esa combinación
       en vez de intentar descargar un artefacto que no existe.
+
+#### Distribución — .deb / .rpm (implementado sept. 2026)
+
+- [x] `.goreleaser.yaml`: sección `nfpms` con `formats: [deb, rpm]`.
+      GoReleaser filtra automáticamente por plataforma sin necesitar
+      un campo `if` explícito (ese campo resultó ser Pro-only en la
+      versión OSS 2.16 que usamos — lo intentamos primero y
+      `goreleaser check` lo rechazó).
+- [x] Sin repo APT/YUM propio: los paquetes se publican como asset
+      directo en el mismo GitHub Release donde ya viven los
+      `.tar.gz`/`.zip`. No hay `apt install mistah` desde un
+      repositorio de terceros — es `dpkg -i`/`rpm -i` manual, mismo
+      nivel de fricción que la descarga manual de macOS/Windows.
+- [x] Sin firma GPG de los paquetes — mismo modelo de confianza que el
+      resto de assets sin firmar (el usuario decide confiar antes de
+      `dpkg -i`/`rpm -i`, igual que con el `.tar.gz` sin firmar).
+- [x] Validado con **instalación real** (no solo generación del
+      paquete) en contenedores Docker con `--platform linux/amd64`:
+      `debian:12` (`dpkg -i` + `mistah version` correcto, binario en
+      `/usr/bin/mistah`) y `fedora:latest` (`rpm -i` + `mistah
+      version` correcto). Se probó primero con un snapshot local y
+      después con los assets reales descargados del release v0.6.2
+      publicado — ambas rutas funcionaron igual.
+- [ ] Repo APT/YUM propio (permitiría `apt install`/`dnf install` reales
+      desde un repositorio agregado) — requiere hostear y mantener un
+      servidor de repositorio firmado; no es trivial y queda como
+      mejora futura real, no una tarea menor.
 
 ### Métricas de salud
 
