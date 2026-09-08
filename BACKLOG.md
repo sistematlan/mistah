@@ -324,6 +324,46 @@ solo los detectores de bajo nivel y sus paths difieren por archivo
       GoReleaser para AUR — sería un paso custom en release.yml, no
       una sección de `.goreleaser.yaml`).
 
+#### Distribución — Nix flake (implementado sept. 2026, validación incompleta)
+
+- [x] `flake.nix` en la raíz del repo, self-hosted igual que Homebrew/
+      Scoop (a diferencia de nixpkgs central, que exige PR + revisión
+      humana, mismo tipo de gatekeeping que AUR/winget). Permite `nix
+      run github:sistematlan/mistah` / `nix profile install
+      github:sistematlan/mistah` sin pasar por ningún registro
+      central.
+- [x] `buildGoModule` con `proxyVendor = true` — se probó primero sin
+      esa opción y falló con "inconsistent vendoring" (el `go mod
+      vendor` interno de Nix discrepaba con los requerimientos
+      explícitos del `go.mod`, aunque `go mod vendor` corrido
+      directamente con Go 1.26.3 funciona sin problema — parece un
+      detalle de la implementación de `buildGoModule`, no un problema
+      real del proyecto). `proxyVendor = true` es la mitigación que
+      la propia documentación de nixpkgs recomienda para esta clase
+      de discrepancia.
+- [ ] **Validación incompleta**: no se pudo confirmar un `nix build`
+      exitoso de punta a punta en esta sesión. El primer intento (sin
+      `proxyVendor`) sí llegó hasta la fase de compilación real
+      (`Building subPackage .`) antes de fallar por el vendoring —
+      confirma que la estructura del flake, el fetch de `self` como
+      `src`, y las dependencias de sistema (`go`, `gcc`, toolchain)
+      funcionan. El segundo intento (con `proxyVendor = true`, la
+      versión que quedó en el repo) se atoró repetidamente
+      descargando un solo path desde `cache.nixos.org` sin completar
+      en varios intentos de hasta 4 minutos — parece un problema de
+      red/infraestructura del entorno sandbox usado en esta sesión,
+      no un error del flake, pero no se pudo confirmar con certeza
+      total. **Antes de anunciar esta vía públicamente en README/web,
+      alguien con un entorno Nix real (o con mejor conectividad a
+      cache.nixos.org) debe correr `nix build .#default` y confirmar
+      que compila.**
+- [ ] `vendorHash = null` quedó como placeholder documentado, no como
+      el hash real — Nix nunca llegó a reportarlo porque el build no
+      completó. Debe recalcularse en el primer build exitoso.
+- [ ] No anunciado todavía en README.md/web/index.html a propósito de
+      lo anterior — anunciar una vía de instalación sin haberla
+      confirmado funcional sería peor que no tenerla.
+
 #### Soporte Windows — deliberadamente NO portado (sin equivalente razonable)
 
 - [ ] **Time Machine snapshots** (`tmutil`) — VSS/Volume Shadow Copy es
