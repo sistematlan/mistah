@@ -1,7 +1,41 @@
 # BACKLOG — mistah
 
 > Pendientes priorizados. Ítems marcados con `[x]` están completados.
-> Última actualización: sesión 2026-06-08.
+> Última actualización: sesión 2026-09-08 (distribución multiplataforma:
+> Windows/Linux, Homebrew, Scoop, .deb/.rpm, Nix flake). Ver snapshot
+> abajo para el estado exacto de cada vía.
+
+---
+
+## 📍 Estado de distribución (snapshot sesión sept. 2026)
+
+**Decisión de esta sesión: distribución declarada "completa por ahora".**
+Criterio: Homebrew (vía propio) para macOS + ejecutables descargables
+para las 3 plataformas cubre el caso de uso principal. Lo que sigue
+pendiente son mejoras incrementales, no bloqueos para uso real.
+
+| Vía | Plataforma | Estado |
+|---|---|---|
+| Homebrew (`brew tap sistematlan/tools`) | macOS | ✅ Validado en producción real (tap → trust → install → version) |
+| `curl \| sh` (install.sh) | macOS, Linux, WSL | ✅ Validado en producción real |
+| `go install ...@latest` | Cualquiera con Go | ✅ Validado |
+| `.tar.gz` / `.zip` manual (GitHub Releases) | macOS, Windows, Linux | ✅ Validado |
+| `.deb` / `.rpm` (asset directo, sin repo propio) | Linux | ✅ Validado con instalación real en Docker (debian:12, fedora:latest) |
+| Scoop (`scoop bucket add sistematlan ...`) | Windows | ⚠️ Publicado y funcional según manifest, **pendiente validar en Windows real** — la máquina usada para pruebas anteriores no estaba disponible en esta sesión |
+| Nix flake (`flake.nix` en el repo) | Cualquiera con Nix | ⚠️ Escrito, `flake.lock` válido, pero **`nix build` nunca completó** en esta sesión (atascos repetidos de red hacia `cache.nixos.org` en el sandbox usado) — NO anunciado en README/web hasta confirmar que compila |
+| AUR (Arch Linux) | Arch/derivados | 🧱 Bloqueado: requiere cuenta humana en `aur.archlinux.org`, no automatizable vía API — pendiente de que alguien la cree |
+| winget | Windows | 🧱 No iniciado: repo central de Microsoft (`microsoft/winget-pkgs`), requiere PR + revisión humana, herramienta `wingetcreate` exclusiva de Windows |
+| Repo APT/YUM propio | Linux | 🧱 No iniciado: requeriría hostear y firmar un servidor de repositorio, fuera de alcance de esta ronda |
+| Chocolatey | Windows | 🧱 No investigado todavía |
+| Snap / Flatpak | Linux | 🧱 No investigado todavía |
+
+### Siguientes pasos concretos (en orden sugerido, ninguno es bloqueante)
+
+1. **Cuando la máquina Windows esté disponible**: correr `scoop bucket add sistematlan https://github.com/sistematlan/scoop-bucket && scoop install mistah` y confirmar `mistah version`. Si falla, el manifest está en `sistematlan/scoop-bucket/bucket/mistah.json` — comparar contra lo que GoReleaser genera en un `--snapshot` local.
+2. **Nix flake**: reintentar `nix build .#default` en un entorno con mejor conectividad a `cache.nixos.org` (o con `nix.conf` apuntando a un caché espejo). Si compila, copiar el `vendorHash` real que Nix reporte y anunciar la vía en README.md + web/index.html. Si sigue fallando con el mismo error de vendoring incluso con `proxyVendor = true`, investigar si es necesario `go mod vendor` manual commiteado al repo en vez de dejarlo a `buildGoModule`.
+3. **AUR**: decisión de negocio pendiente — alguien con acceso a `hola@sistematlan.com` necesita registrar la cuenta en `aur.archlinux.org` antes de que se pueda avanzar nada técnico ahí.
+4. **winget**: si se decide perseguir, el trabajo real es correr `wingetcreate` (herramienta .NET, solo Windows) para generar el manifiesto YAML, y automatizarlo añadiendo un job `windows-latest` al workflow de release que instale `wingetcreate` vía `winget install wingetcreate` y haga `wingetcreate update ... --submit` con un PAT — pero cada release seguirá dependiendo de la aprobación del bot/moderador de Microsoft, tiempos fuera de nuestro control.
+5. **Repo APT/YUM propio**: solo si hay demanda real de `apt install mistah` desde un repo de terceros — es trabajo de infraestructura no trivial (firma GPG, hosting, mantenimiento).
 
 ---
 
