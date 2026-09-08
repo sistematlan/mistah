@@ -194,3 +194,50 @@ scoops:
     description: "CLI open-source que recupera espacio en disco: cachés, papelera, backups viejos y más. Sin telemetría, código auditable."
     license: MIT
     commit_msg_template: "scoop manifest update for {{ .ProjectName }} version {{ .Tag }}"
+
+# nfpms builds native Linux packages (.deb, .rpm) directly from the
+# linux_amd64 binary above, attached as extra assets on the same
+# GitHub Release — no separate repo, no APT/YUM hosting infrastructure
+# of our own. This is deliberately the "cheap" tier of Linux packaging:
+#
+#   - .deb / .rpm here: zero submission process, published the moment
+#     the release goes out, but users must download+run `dpkg -i` /
+#     `rpm -i` manually (or point their own local repo tooling at the
+#     asset URL) — there's no `apt install mistah` from a third-party
+#     repo the way `brew install`/`scoop install` work, because that
+#     would require running and maintaining our own signed APT/YUM
+#     repository server. Tracked as a real follow-up in BACKLOG.md,
+#     not implemented here.
+#   - AUR (Arch) is intentionally NOT covered by this section — it
+#     needs a human-registered aur.archlinux.org account (can't be
+#     automated/API'd) and its own PKGBUILD/.SRCINFO workflow. See
+#     BACKLOG.md for that gap; it's a separate, still-open item.
+#
+# No signature block: signing .deb/.rpm requires a GPG key whose
+# public half users would need to import and trust before their
+# package manager accepts it — the same category of "who do you trust
+# and why" tradeoff Homebrew's `brew trust` prompt already surfaces
+# for our unsigned macOS binary. Adding real GPG signing is a
+# reasonable next step, not a blocker for shipping unsigned .deb/.rpm
+# assets that users install with explicit `dpkg -i`/`rpm -i` (same
+# trust model as downloading and running any unsigned .zip/.tar.gz
+# already documented in README.md).
+nfpms:
+  - id: mistah-nfpm
+    package_name: mistah
+    file_name_template: "{{ .ConventionalFileName }}"
+    ids:
+      - mistah
+    homepage: "https://mistah.sistematlan.com"
+    description: "CLI open-source que recupera espacio en disco: cachés, papelera, backups viejos y más. Sin telemetría, código auditable."
+    maintainer: "sistematlan <hola@sistematlan.com>"
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/mistah/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/mistah/README.md
