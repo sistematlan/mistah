@@ -219,6 +219,15 @@ var english = map[string]string{
 	"ui.nothing":               "Nothing to clean. Disk is in order.",
 	"ui.dry-run-mode":          "Mode: dry-run (nothing will be deleted)",
 
+	// ---- Processes (mistah processes / --kill) ----
+	"processes.pid":            "pid",
+	"processes.name":           "process",
+	"processes.ram":            "ram",
+	"processes.cpu":            "cpu %",
+	"processes.kill.confirm":   "Terminate %s? [y/N] ",
+	"processes.kill.done":      "PID %d terminated.",
+	"processes.kill.cancelled": "Cancelled, no process terminated.",
+
 	// ---- Cleaner prompts ----
 	"cleaner.prompt":           "[y/N/v=view/q=quit] ",
 	"cleaner.prompt.dangerous": "TYPE the exact name (%q) or empty to cancel:\n  > ",

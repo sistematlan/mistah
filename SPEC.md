@@ -31,6 +31,7 @@ mistah projects      Análisis de carpetas de código fuente
 mistah downloads     Archivos en ~/Downloads agrupados por tipo y antigüedad
 mistah clean         Limpieza interactiva con confirmación ítem por ítem
 mistah clean --dry-run  Muestra qué se eliminaría sin borrar nada
+mistah processes     Procesos por RAM/CPU; --kill <pid> los termina (con confirmación)
 mistah report        Genera reporte en JSON o texto plano
 mistah version       Versión del binario
 mistah help          Ayuda general
@@ -178,7 +179,7 @@ goreleaser release
 |---|---|
 | **Siempre hacer** | Mostrar tamaño antes de borrar. Pedir confirmación. Dry-run disponible. |
 | **Preguntar antes** | Docker volumes. Carpetas de proyecto sin git. Apps del sistema. |
-| **Nunca hacer** | Borrar fuera de rutas conocidas. Ejecutar como root. Enviar telemetría. Borrar sin confirmación explícita (salvo `--yes`). |
+| **Nunca hacer** | Borrar fuera de rutas conocidas. Ejecutar como root. Enviar telemetría. Borrar sin confirmación explícita (salvo `--yes`). Terminar PID 0/1 ni el propio proceso. |
 
 ---
 
