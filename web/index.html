@@ -493,6 +493,30 @@
   }
   footer a { color: var(--accent-2); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
+  footer .bmc-link {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 2px solid var(--gold);
+    background: var(--gold);
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 700;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  footer .bmc-link:hover {
+    background: transparent;
+    color: var(--gold);
+    text-decoration: none;
+    transform: translate(-2px, -2px);
+  }
+  footer .bmc-link:focus-visible {
+    outline: 3px solid var(--canvas);
+    outline-offset: 3px;
+  }
 
   @media (max-width: 880px) {
     .hero { grid-template-columns: 1fr; }
@@ -781,6 +805,7 @@
     <div>
       <a href="https://github.com/sistematlan/mistah">github</a> ·
       <a href="https://github.com/sistematlan/mistah/issues">reportar issue</a> ·
+      <a href="https://buymeacoffee.com/sistematlan" class="bmc-link" target="_blank" rel="noopener noreferrer sponsored" aria-label="Invitar a Sistematlan un café en Buy Me a Coffee">☕ invítanos un café</a> ·
       <a href="https://sistematlan.com">sistematlan.com</a>
     </div>
   </div>
