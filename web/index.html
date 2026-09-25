@@ -496,8 +496,8 @@
   footer .bmc-link {
     min-height: 40px;
     padding: 8px 14px;
-    border: 2px solid var(--gold);
-    background: var(--gold);
+    border: 2px solid var(--accent-2);
+    background: var(--accent-2);
     color: var(--ink);
     display: inline-flex;
     align-items: center;
@@ -509,13 +509,46 @@
   }
   footer .bmc-link:hover {
     background: transparent;
-    color: var(--gold);
+    color: var(--accent-2);
     text-decoration: none;
     transform: translate(-2px, -2px);
   }
   footer .bmc-link:focus-visible {
     outline: 3px solid var(--canvas);
     outline-offset: 3px;
+  }
+
+  /* Support note */
+  .support-note {
+    margin-top: 48px;
+    padding: 28px 32px;
+    background: var(--canvas-2);
+    border: 3px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--accent-2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .support-note p { font-size: 17px; line-height: 1.55; max-width: 680px; font-weight: 500; }
+  .support-note .btn-coffee {
+    background: var(--accent-2);
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+  .support-note .btn-coffee:hover {
+    background: var(--accent);
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .support-note .btn-coffee:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+  @media (max-width: 480px) {
+    nav { padding: 12px 16px; }
+    .nav-links { gap: 2px; font-size: 13px; }
+    .nav-links a { padding: 6px 7px; white-space: nowrap; }
+    .brand { font-size: 22px; }
   }
 
   @media (max-width: 880px) {
@@ -527,6 +560,7 @@
     .etymology { grid-template-columns: 1fr; gap: 24px; padding: 32px; }
     .hero-install { flex-direction: column; align-items: stretch; }
     .hero-install pre { font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+    .support-note { padding: 24px 20px; }
   }
 </style>
 </head>
@@ -782,6 +816,10 @@
   <p style="font-size:15px; margin-top:8px; font-weight:500;">
     ¿Prefieres <span class="mono-inline" style="font-family:'JetBrains Mono',monospace; font-size:13px; background:var(--ink); color:var(--accent-2); padding:2px 6px;">.deb</span> o <span class="mono-inline" style="font-family:'JetBrains Mono',monospace; font-size:13px; background:var(--ink); color:var(--accent-2); padding:2px 6px;">.rpm</span>? También están en <a href="https://github.com/sistematlan/mistah/releases/latest" style="text-decoration:underline; color:var(--ink); font-weight:700;">GitHub Releases</a>, listos para <span class="mono-inline" style="font-family:'JetBrains Mono',monospace; font-size:13px; background:var(--ink); color:var(--accent-2); padding:2px 6px;">dpkg -i</span> / <span class="mono-inline" style="font-family:'JetBrains Mono',monospace; font-size:13px; background:var(--ink); color:var(--accent-2); padding:2px 6px;">rpm -i</span>.
   </p>
+  <div class="support-note">
+    <p>mistah es gratis, sin anuncios y sin telemetría — no vendemos nada tuyo porque no tenemos nada tuyo. Lo hacemos en nuestro tiempo libre. Si te liberó unos gigas y te gustó, puedes invitarnos un café.</p>
+    <a href="https://buymeacoffee.com/sistematlan" class="btn btn-coffee" target="_blank" rel="noopener noreferrer sponsored">☕ INVÍTANOS UN CAFÉ</a>
+  </div>
 </section>
 
 <section>
