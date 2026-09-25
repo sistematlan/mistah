@@ -124,6 +124,8 @@ mistah clean --dry-run          # ver qué se borraría (solo caches dev)
 mistah clean                    # interactivo, ítem por ítem
 mistah clean --include-system   # también papelera/Recycle Bin, cachés de apps, snapshots, logs
 mistah clean --all              # todas las categorías (= wizard Profundo)
+mistah processes                # qué se come la RAM/CPU ahora mismo
+mistah processes --kill 4821    # termina un proceso (pide confirmación)
 mistah --help                   # ayuda completa
 mistah --advanced --help        # mostrar todos los comandos avanzados
 ```

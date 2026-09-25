@@ -205,6 +205,15 @@ var spanish = map[string]string{
 	"ui.nothing":               "Nada que limpiar. Disco en orden.",
 	"ui.dry-run-mode":          "Modo: dry-run (no se borrará nada)",
 
+	// ---- Processes (mistah processes / --kill) ----
+	"processes.pid":            "pid",
+	"processes.name":           "proceso",
+	"processes.ram":            "ram",
+	"processes.cpu":            "cpu %",
+	"processes.kill.confirm":   "¿Terminar %s? [s/N] ",
+	"processes.kill.done":      "PID %d terminado.",
+	"processes.kill.cancelled": "Cancelado, ningún proceso terminado.",
+
 	// ---- Cleaner prompts ----
 	"cleaner.prompt":           "[s/N/v=ver/q=salir] ",
 	"cleaner.prompt.dangerous": "ESCRIBE el nombre exacto (%q) o vacío para cancelar:\n  > ",
